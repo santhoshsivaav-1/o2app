@@ -734,3 +734,219 @@ test("phase5: payments, refunds, reports", { skip: !RUN }, async () => {
     }
   }
 });
+
+test("phase6: enquiries, follow-ups, conversion", { skip: !RUN }, async () => {
+  const FLOW_PORT = PORT + 4;
+  const { app, prisma } = await bootApp(FLOW_PORT);
+  const base = `http://localhost:${FLOW_PORT}/api/v1`;
+  const call = (method: string, path: string, jar: Jar, body?: unknown, csrf = true) =>
+    reqBase(base + path, method, jar, body, csrf);
+  const enquiryIds: string[] = [];
+  const memberIds: string[] = [];
+  let recepId = "";
+
+  try {
+    const ownerEmail = process.env.OWNER_EMAIL ?? "";
+    const ownerPass = process.env.OWNER_PASSWORD ?? "";
+    let r = await call("POST", "/auth/login", {}, { email: ownerEmail, password: ownerPass });
+    assert.equal(r.status, 200);
+    const owner: Jar = r.jar;
+
+    r = await call("GET", "/genders", owner);
+    const gender = (r.json as { id: string }[])[0];
+
+    // Create + numbering + validation.
+    r = await call("POST", "/enquiries", owner, {
+      name: "Lead Kumar",
+      phone: "+91 91111 00001",
+      source: "walk-in",
+      interest: "Weight loss",
+    });
+    assert.equal(r.status, 201);
+    assert.match(r.json.enquiryNo as string, /^ENQ-\d{4}-\d{4}$/);
+    const e1 = r.json.id as string;
+    enquiryIds.push(e1);
+    assert.equal(
+      (
+        await call("POST", "/enquiries", owner, {
+          name: "X",
+          phone: "9111100002",
+          status: "converted",
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (
+        await call("POST", "/enquiries", owner, {
+          name: "X",
+          phone: "9111100002",
+          assignedToId: "123e4567-e89b-12d3-a456-426614174000",
+        })
+      ).status,
+      400,
+    );
+
+    // Overdue enquiry + search.
+    const yesterday = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    r = await call("POST", "/enquiries", owner, {
+      name: "Late Lalit",
+      phone: "91111 00002",
+      nextFollowUpAt: yesterday,
+    });
+    assert.equal(r.status, 201);
+    const e2 = r.json.id as string;
+    enquiryIds.push(e2);
+    r = await call("POST", `/enquiries/${e2}/follow-ups`, owner, {
+      activity: "call",
+      note: "Call back",
+      dueAt: yesterday,
+    });
+    assert.equal(r.status, 201);
+    r = await call("GET", "/enquiries?overdue=true", owner);
+    assert.ok((r.json.data as unknown[]).some((e: any) => e.id === e2));
+    r = await call("GET", "/enquiries?q=9111100001", owner);
+    assert.equal((r.json.meta as { total: number }).total, 1);
+
+    // Follow-ups: add, next-action tracking, complete, queue.
+    r = await call("POST", `/enquiries/${e1}/follow-ups`, owner, {
+      activity: "call",
+      note: "No answer",
+      dueAt: new Date(Date.now() + 2 * 24 * 3600 * 1000).toISOString(),
+    });
+    assert.equal(r.status, 201);
+    const f1 = r.json.id as string;
+    r = await call("GET", `/enquiries/${e1}`, owner);
+    assert.ok(r.json.nextFollowUpAt);
+    const firstDue = r.json.nextFollowUpAt as string;
+    r = await call("POST", `/enquiries/${e1}/follow-ups`, owner, {
+      activity: "visit",
+      dueAt: new Date(Date.now() + 9 * 24 * 3600 * 1000).toISOString(),
+    });
+    assert.equal(r.status, 201);
+    r = await call("GET", `/enquiries/${e1}`, owner);
+    assert.equal(r.json.nextFollowUpAt, firstDue); // later booking doesn't move the next action
+    r = await call("PATCH", `/follow-ups/${f1}/complete`, owner, {});
+    assert.equal(r.status, 200);
+    assert.ok(r.json.doneAt);
+    r = await call("GET", "/follow-ups?scope=overdue", owner);
+    assert.ok((r.json.data as unknown[]).some((f: any) => f.enquiry.id === e2));
+    r = await call("GET", "/follow-ups?scope=upcoming&days=30", owner);
+    assert.ok((r.json.data as unknown[]).some((f: any) => f.enquiry.id === e1));
+
+    // Assign to staff.
+    const recepRole = await prisma.role.findUniqueOrThrow({ where: { name: "receptionist" } });
+    r = await call("POST", "/users", owner, {
+      name: "Lead Recep",
+      email: "lead-recep@o2.test",
+      password: "Recep-Lead-06",
+      roleIds: [recepRole.id],
+    });
+    recepId = r.json.id as string;
+    r = await call("PATCH", `/enquiries/${e1}`, owner, {
+      assignedToId: recepId,
+      status: "contacted",
+    });
+    assert.equal(r.status, 200);
+    assert.equal(r.json.assignedTo.id, recepId);
+    r = await call("GET", `/enquiries?assignedToId=${recepId}`, owner);
+    assert.equal((r.json.meta as { total: number }).total, 1);
+
+    // Convert: creates member, links, preserves history, blocks repeats.
+    r = await call("POST", `/enquiries/${e1}/convert`, owner, { genderId: gender.id });
+    assert.equal(r.status, 201);
+    assert.equal(r.json.status, "converted");
+    assert.ok(r.json.convertedMember.memberCode);
+    memberIds.push(r.json.convertedMember.id as string);
+    assert.equal(
+      (await call("POST", `/enquiries/${e1}/convert`, owner, { genderId: gender.id })).status,
+      409,
+    );
+    r = await call("GET", `/enquiries/${e1}`, owner);
+    assert.ok(
+      (r.json.followUps as unknown[]).some((f: any) =>
+        String(f.note).startsWith("Converted to member"),
+      ),
+    );
+    assert.equal(
+      (await call("PATCH", `/enquiries/${e1}`, owner, { status: "interested" })).status,
+      409,
+    );
+    r = await call("PATCH", `/enquiries/${e1}`, owner, { notes: "VIP lead" });
+    assert.equal(r.status, 200);
+
+    // Duplicate mobile on convert -> 409 with matches, then explicit confirm.
+    r = await call("POST", "/enquiries", owner, {
+      name: "Lead Kumar Again",
+      phone: "+91 91111 00001",
+    });
+    const e3 = r.json.id as string;
+    enquiryIds.push(e3);
+    r = await call("POST", `/enquiries/${e3}/convert`, owner, { genderId: gender.id });
+    assert.equal(r.status, 409);
+    r = await call("POST", `/enquiries/${e3}/convert`, owner, {
+      genderId: gender.id,
+      confirmDuplicate: true,
+    });
+    assert.equal(r.status, 201);
+    memberIds.push(r.json.convertedMember.id as string);
+
+    // Permission gate: trainer has members.read but not enquiries.manage.
+    const trainerRole = await prisma.role.findUniqueOrThrow({ where: { name: "trainer" } });
+    r = await call("POST", "/users", owner, {
+      name: "Lead Trainer",
+      email: "lead-trainer@o2.test",
+      password: "Trainer-06-xy",
+      roleIds: [trainerRole.id],
+    });
+    const trainerId = r.json.id as string;
+    r = await call(
+      "POST",
+      "/auth/login",
+      {},
+      { email: "lead-trainer@o2.test", password: "Trainer-06-xy" },
+    );
+    const trainer: Jar = r.jar;
+    assert.equal((await call("GET", "/enquiries", trainer)).status, 403);
+    await prisma.session.deleteMany({ where: { userId: trainerId } });
+    await prisma.userRole.deleteMany({ where: { userId: trainerId } });
+    await prisma.user.deleteMany({ where: { id: trainerId } });
+
+    // Report reconciles.
+    const from = "2020-01-01";
+    const to = "2030-12-31";
+    r = await call("GET", `/reports/enquiries?from=${from}&to=${to}`, owner);
+    assert.equal(r.status, 200);
+    assert.ok(r.json.total >= 3);
+    assert.ok((r.json.byStatus.converted ?? 0) >= 2);
+    assert.equal(
+      r.json.conversionRate,
+      Math.round(((r.json.byStatus.converted ?? 0) / r.json.total) * 1000) / 10,
+    );
+  } finally {
+    const payIds = await prisma.payment.findMany({
+      where: { memberId: { in: memberIds } },
+      select: { id: true },
+    });
+    const pids = payIds.map((p) => p.id);
+    if (pids.length > 0) {
+      await prisma.refund.deleteMany({ where: { paymentId: { in: pids } } });
+      await prisma.creditAdjustment.deleteMany({ where: { sourcePaymentId: { in: pids } } });
+      await prisma.payment.deleteMany({ where: { id: { in: pids } } });
+    }
+    await prisma.followUp.deleteMany({ where: { enquiryId: { in: enquiryIds } } });
+    await prisma.enquiry.deleteMany({ where: { id: { in: enquiryIds } } });
+    await prisma.memberNote.deleteMany({ where: { memberId: { in: memberIds } } });
+    await prisma.member.deleteMany({ where: { id: { in: memberIds } } });
+    if (recepId) {
+      await prisma.session.deleteMany({ where: { userId: recepId } });
+      await prisma.userRole.deleteMany({ where: { userId: recepId } });
+      await prisma.user.deleteMany({ where: { id: recepId } });
+    }
+    try {
+      await app.close();
+    } finally {
+      await prisma.$disconnect();
+    }
+  }
+});

@@ -22,6 +22,7 @@ model User {
   userRoles      UserRole[]
   sessions       Session[]
   trainedMembers Member[]  @relation("TrainerMembers")
+  assignedEnquiries Enquiry[] @relation("EnquiryAssignee")
 }
 
 model Role {
@@ -121,6 +122,7 @@ model Member {
   invoices          Invoice[]
   payments          Payment[]
   credits           CreditAdjustment[]
+  convertedFrom     Enquiry[]   @relation("EnquiryConversion")
 
   @@index([mobileNorm])
   @@index([status])
@@ -157,6 +159,7 @@ model Package {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   memberships Membership[]
+  enquiries   Enquiry[]
 
   @@index([isActive])
 }
@@ -334,4 +337,51 @@ model CreditAdjustment {
   createdAt       DateTime @default(now())
 
   @@index([memberId])
+}
+
+model Enquiry {
+  id               String     @id @default(uuid())
+  enquiryNo        String     @unique
+  name             String
+  phone            String
+  phoneNorm        String
+  email            String?
+  interest         String?
+  interestPackageId String?
+  interestPackage  Package?   @relation(fields: [interestPackageId], references: [id], onDelete: SetNull)
+  source           String?
+  enquiryDate      DateTime   @default(now()) @db.Date
+  assignedToId     String?
+  assignedTo       User?      @relation("EnquiryAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  status           String     @default("new")
+  nextFollowUpAt   DateTime?
+  notes            String?
+  convertedMemberId String?
+  convertedMember  Member?    @relation("EnquiryConversion", fields: [convertedMemberId], references: [id], onDelete: SetNull)
+  convertedAt      DateTime?
+  createdById      String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  followUps        FollowUp[]
+
+  @@index([status])
+  @@index([phoneNorm])
+  @@index([assignedToId])
+  @@index([nextFollowUpAt])
+  @@index([enquiryDate])
+}
+
+model FollowUp {
+  id          String    @id @default(uuid())
+  enquiryId   String
+  enquiry     Enquiry   @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  activity    String
+  note        String?
+  dueAt       DateTime?
+  doneAt      DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  @@index([enquiryId])
+  @@index([dueAt])
 }

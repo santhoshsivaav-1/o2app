@@ -95,6 +95,18 @@ notice + refund action, member profile shows real invoices & payment history.
 Tests: shared 16/16, api 9/9 with `RUN_AUTH_FLOW=1`. Rules in
 `docs/billing-rules.md`.
 
+## Phase 6 status — DONE (enquiries & follow-ups)
+
+Backend: lead CRUD with `ENQ-YYYY-####` numbers, assignment, statuses (leads become
+Converted only through the explicit convert action), follow-up activities with
+next-action tracking, overdue/upcoming/all queue, conversion that reuses member
+registration (duplicate protection included) and preserves enquiry history,
+lead volume/conversion/source report. Migration `phase6_enquiries`.
+
+Web: enquiry pipeline (filters incl. overdue), new-lead form, lead detail
+(edit/assign/status, follow-up timeline, convert wizard), follow-ups work queue.
+Tests: shared 17/17, api 10/10 with `RUN_AUTH_FLOW=1`.
+
 ## Quick links
 
 - `docs/requirements.md`, `docs/database-erd.md`, `docs/api.md`, `docs/roles-permissions.md`

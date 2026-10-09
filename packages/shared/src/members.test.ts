@@ -4,9 +4,12 @@ import {
   addDays,
   cleanMemberInput,
   diffDays,
+  enquiryStatus,
+  formatEnquiryNo,
   formatInvoiceNo,
   formatMemberCode,
   invoiceOutstanding,
+  isEnquiryTerminal,
   memberSchema,
   membershipValidity,
   normalizeMobile,
@@ -120,4 +123,12 @@ test("billing: methods, outstanding, status", () => {
   assert.equal(recomputeInvoiceStatus(1000, 1000, 0), "paid");
   assert.equal(recomputeInvoiceStatus(1000, 1000, 1000), "refunded");
   assert.equal(recomputeInvoiceStatus(1000, 1000, 200), "paid");
+});
+
+test("enquiries: statuses + numbering", () => {
+  assert.equal(enquiryStatus("follow_up"), "Follow-up required");
+  assert.equal(isEnquiryTerminal("converted"), true);
+  assert.equal(isEnquiryTerminal("lost"), true);
+  assert.equal(isEnquiryTerminal("interested"), false);
+  assert.equal(formatEnquiryNo(2026, 3), "ENQ-2026-0003");
 });

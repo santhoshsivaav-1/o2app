@@ -51,6 +51,33 @@ export function todayInTimezone(tz: string): string {
   return toDateStrInTimezone(new Date(), tz);
 }
 
+// ---------- enquiries ----------
+
+export const ENQUIRY_STATUSES = [
+  { key: "new", label: "New" },
+  { key: "contacted", label: "Contacted" },
+  { key: "follow_up", label: "Follow-up required" },
+  { key: "trial", label: "Trial scheduled" },
+  { key: "interested", label: "Interested" },
+  { key: "converted", label: "Converted" },
+  { key: "lost", label: "Lost" },
+] as const;
+
+export type EnquiryStatus = (typeof ENQUIRY_STATUSES)[number]["key"];
+
+export function enquiryStatus(key: string): string {
+  return ENQUIRY_STATUSES.find((s) => s.key === key)?.label ?? key;
+}
+
+/** Terminal states need no further follow-up. */
+export function isEnquiryTerminal(status: string): boolean {
+  return status === "converted" || status === "lost";
+}
+
+export function formatEnquiryNo(year: number, seq: number): string {
+  return `ENQ-${year}-${String(seq).padStart(4, "0")}`;
+}
+
 // ---------- billing ----------
 
 export interface PaymentMethod {

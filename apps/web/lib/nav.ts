@@ -19,6 +19,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/members", label: "Members", perm: "members.read" },
       { href: "/enquiries", label: "Enquiries", perm: "enquiries.manage" },
+      { href: "/follow-ups", label: "Follow-ups", perm: "enquiries.manage" },
       { href: "/memberships", label: "Memberships", perm: "memberships.create" },
       { href: "/packages", label: "Packages", perm: "memberships.create" },
       { href: "/attendance", label: "Attendance", perm: "attendance.read" },

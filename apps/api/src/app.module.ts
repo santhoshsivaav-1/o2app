@@ -18,6 +18,8 @@ import { MembershipsService } from "./memberships/memberships.service.js";
 import { MembershipsController } from "./memberships/memberships.controller.js";
 import { BillingService } from "./billing/billing.service.js";
 import { BillingController } from "./billing/billing.controller.js";
+import { EnquiriesService } from "./enquiries/enquiries.service.js";
+import { EnquiriesController } from "./enquiries/enquiries.controller.js";
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ name: "default", ttl: 60000, limit: 120 }])],
@@ -31,6 +33,7 @@ import { BillingController } from "./billing/billing.controller.js";
     GendersController,
     MembershipsController,
     BillingController,
+    EnquiriesController,
   ],
   providers: [
     PrismaService,
@@ -41,6 +44,7 @@ import { BillingController } from "./billing/billing.controller.js";
     PackagesService,
     MembershipsService,
     BillingService,
+    EnquiriesService,
     Reflector,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
