@@ -15,6 +15,7 @@ const withPWA = withPWAInit({
 const nextConfig = {
   output: "standalone",
   reactStrictMode: true,
+  transpilePackages: ["@o2app/shared"],
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1",
   },
