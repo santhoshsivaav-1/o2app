@@ -950,3 +950,236 @@ test("phase6: enquiries, follow-ups, conversion", { skip: !RUN }, async () => {
     }
   }
 });
+
+test("phase7: attendance ingest, mapping, manual, corrections", { skip: !RUN }, async () => {
+  const FLOW_PORT = PORT + 5;
+  const { app, prisma } = await bootApp(FLOW_PORT);
+  const base = `http://localhost:${FLOW_PORT}/api/v1`;
+  const call = (method: string, path: string, jar: Jar, body?: unknown, csrf = true) =>
+    reqBase(base + path, method, jar, body, csrf);
+  const memberIds: string[] = [];
+  const deviceIds: string[] = [];
+  let recepId = "";
+
+  // Device-key ingest bypasses staff JWT: raw fetch helper.
+  const ingest = (body: unknown) =>
+    fetch(base + "/devices/events:ingest", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(async (res) => ({
+      status: res.status,
+      json: (await res.json().catch(() => null)) as any,
+    }));
+
+  try {
+    const ownerEmail = process.env.OWNER_EMAIL ?? "";
+    const ownerPass = process.env.OWNER_PASSWORD ?? "";
+    let r = await call("POST", "/auth/login", {}, { email: ownerEmail, password: ownerPass });
+    assert.equal(r.status, 200);
+    const owner: Jar = r.jar;
+
+    r = await call("GET", "/genders", owner);
+    const gender = (r.json as { id: string }[])[0];
+    const mkMember = async (name: string, mobile: string) => {
+      const res = await call("POST", "/members", owner, {
+        fullName: name,
+        mobile,
+        genderId: gender.id,
+      });
+      assert.equal(res.status, 201);
+      memberIds.push(res.json.id as string);
+      return res.json.id as string;
+    };
+    const m1 = await mkMember("Attend One", "9000711122");
+    const m2 = await mkMember("Attend Two", "9000722233");
+
+    // Device + key + mapping.
+    r = await call("POST", "/devices", owner, { deviceCode: "FP-TEST", name: "Test reader" });
+    assert.equal(r.status, 201);
+    const device = r.json.id as string;
+    deviceIds.push(device);
+    r = await call("POST", `/devices/${device}/rotate-key`, owner);
+    assert.equal(r.status, 201);
+    const apiKey = r.json.apiKey as string;
+    assert.ok(apiKey.startsWith("o2dev_"));
+    r = await call("POST", `/devices/${device}/mappings`, owner, {
+      deviceUserId: "fp-u-1",
+      memberId: m1,
+    });
+    assert.equal(r.status, 201);
+    // Receptionist cannot manage devices or mappings.
+    const recepRole = await prisma.role.findUniqueOrThrow({ where: { name: "receptionist" } });
+    r = await call("POST", "/users", owner, {
+      name: "Attend Recep",
+      email: "attend-recep@o2.test",
+      password: "Recep-Att-07",
+      roleIds: [recepRole.id],
+    });
+    recepId = r.json.id as string;
+    r = await call(
+      "POST",
+      "/auth/login",
+      {},
+      { email: "attend-recep@o2.test", password: "Recep-Att-07" },
+    );
+    const recep: Jar = r.jar;
+    assert.equal(
+      (await call("POST", "/devices", recep, { deviceCode: "FP-X", name: "x" })).status,
+      403,
+    );
+    assert.equal((await call("POST", "/attendance/manual", recep, { memberId: m1 })).status, 403);
+    assert.equal((await call("GET", "/attendance", recep)).status, 200);
+
+    // Valid scan -> record; replay -> duplicate; same-day rescan -> duplicate (raw kept).
+    const now = new Date().toISOString();
+    let ing = await ingest({
+      deviceCode: "FP-TEST",
+      apiKey,
+      events: [{ deviceEventId: "e-1", deviceUserId: "fp-u-1", occurredAt: now }],
+    });
+    assert.equal(ing.status, 200);
+    assert.equal(ing.json.ingested, 1);
+    ing = await ingest({
+      deviceCode: "FP-TEST",
+      apiKey,
+      events: [{ deviceEventId: "e-1", deviceUserId: "fp-u-1", occurredAt: now }],
+    });
+    assert.equal(ing.json.duplicates, 1);
+    ing = await ingest({
+      deviceCode: "FP-TEST",
+      apiKey,
+      events: [
+        {
+          deviceEventId: "e-2",
+          deviceUserId: "fp-u-1",
+          occurredAt: new Date(Date.now() + 60_000).toISOString(),
+        },
+      ],
+    });
+    assert.equal(ing.json.duplicates, 1);
+    const today = new Date().toISOString().slice(0, 10);
+    r = await call("GET", `/attendance/daily?date=${today}`, owner);
+    assert.equal(r.status, 200);
+    assert.ok((r.json.data as unknown[]).some((a: any) => a.member.id === m1));
+
+    // Delayed out-of-order event lands on its own date.
+    const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString();
+    ing = await ingest({
+      deviceCode: "FP-TEST",
+      apiKey,
+      events: [{ deviceEventId: "e-old", deviceUserId: "fp-u-1", occurredAt: fiveDaysAgo }],
+    });
+    assert.equal(ing.json.ingested, 1);
+    r = await call("GET", `/attendance/by-member/${m1}`, owner);
+    assert.ok(
+      (r.json.records as unknown[]).some((a: any) =>
+        (a.date as string).startsWith(fiveDaysAgo.slice(0, 10)),
+      ),
+    );
+
+    // Unmapped user -> review -> map -> record.
+    ing = await ingest({
+      deviceCode: "FP-TEST",
+      apiKey,
+      events: [{ deviceEventId: "e-ghost", deviceUserId: "ghost-9", occurredAt: now }],
+    });
+    assert.equal(ing.json.unmapped, 1);
+    r = await call("GET", "/attendance/unmapped", owner);
+    assert.equal(r.status, 200);
+    const ghost = (r.json.data as { id: string; deviceUserId: string }[]).find(
+      (e) => e.deviceUserId === "ghost-9",
+    );
+    assert.ok(ghost);
+    r = await call("POST", `/attendance/unmapped/${ghost!.id}/map`, owner, { memberId: m2 });
+    assert.equal(r.status, 201);
+    assert.ok(r.json.record);
+    assert.equal(
+      (await call("POST", `/attendance/unmapped/${ghost!.id}/map`, owner, { memberId: m2 })).status,
+      409,
+    );
+
+    // Bad credentials rejected.
+    assert.equal(
+      (await ingest({ deviceCode: "FP-TEST", apiKey: "wrong", events: [] })).status,
+      401,
+    );
+    assert.equal((await ingest({ deviceCode: "NOPE", apiKey, events: [] })).status, 401);
+
+    // Manual check-in is idempotent per member+day.
+    r = await call("POST", "/attendance/manual", owner, { memberId: m2 });
+    assert.equal(r.status, 201);
+    const manualId = r.json.id as string;
+    r = await call("POST", "/attendance/manual", owner, { memberId: m2 });
+    assert.equal(r.json.id, manualId);
+
+    // Correction with reason + audit trail; clash rejected; reason required.
+    r = await call("PATCH", `/attendance/records/${manualId}`, owner, {
+      checkInTime: "09:30",
+      reason: "wrong clock",
+    });
+    assert.equal(r.status, 200);
+    assert.ok((r.json.checkInAt as string).includes("09:30"));
+    r = await call("GET", `/attendance/records/${manualId}/corrections`, owner);
+    assert.equal((r.json as unknown[]).length, 1);
+    assert.ok((r.json as { reason: string }[])[0].reason.includes("wrong clock"));
+    assert.equal(
+      (await call("PATCH", `/attendance/records/${manualId}`, owner, { checkInTime: "10:00" }))
+        .status,
+      400,
+    );
+    const clashDate = fiveDaysAgo.slice(0, 10);
+    r = await call("POST", "/attendance/manual", owner, {
+      memberId: m1,
+      date: clashDate,
+      time: "08:00",
+    });
+    assert.equal(r.status, 201);
+
+    // Simulator (dev only) + health + export.
+    r = await call("POST", `/devices/${device}/simulate`, owner, { count: 3, memberIds: [m1] });
+    assert.equal(r.status, 201);
+    assert.equal(r.json.fetched, 3);
+    r = await call("GET", `/devices/${device}/health`, owner);
+    assert.equal(r.status, 200);
+    assert.ok(r.json.lastSyncRun);
+    assert.equal(
+      (await call("GET", "/exports/attendance?from=2020-01-01&to=2030-12-31", owner)).status,
+      200,
+    );
+
+    // Rotating the key invalidates the old one.
+    r = await call("POST", `/devices/${device}/rotate-key`, owner);
+    const keyB = r.json.apiKey as string;
+    assert.equal((await ingest({ deviceCode: "FP-TEST", apiKey, events: [] })).status, 401);
+    const probe = await ingest({ deviceCode: "FP-TEST", apiKey: keyB, events: [] });
+    assert.equal(probe.status, 200);
+  } finally {
+    const recIds = await prisma.attendanceRecord.findMany({
+      where: { memberId: { in: memberIds } },
+      select: { id: true },
+    });
+    const rids = recIds.map((x) => x.id);
+    if (rids.length > 0) {
+      await prisma.attendanceCorrection.deleteMany({ where: { recordId: { in: rids } } });
+      await prisma.attendanceEvent.deleteMany({ where: { recordId: { in: rids } } });
+    }
+    await prisma.attendanceEvent.deleteMany({ where: { memberId: { in: memberIds } } });
+    await prisma.attendanceRecord.deleteMany({ where: { memberId: { in: memberIds } } });
+    await prisma.deviceUserMapping.deleteMany({ where: { deviceId: { in: deviceIds } } });
+    await prisma.deviceSyncRun.deleteMany({ where: { deviceId: { in: deviceIds } } });
+    await prisma.attendanceDevice.deleteMany({ where: { id: { in: deviceIds } } });
+    await prisma.memberNote.deleteMany({ where: { memberId: { in: memberIds } } });
+    await prisma.member.deleteMany({ where: { id: { in: memberIds } } });
+    if (recepId) {
+      await prisma.session.deleteMany({ where: { userId: recepId } });
+      await prisma.userRole.deleteMany({ where: { userId: recepId } });
+      await prisma.user.deleteMany({ where: { id: recepId } });
+    }
+    try {
+      await app.close();
+    } finally {
+      await prisma.$disconnect();
+    }
+  }
+});

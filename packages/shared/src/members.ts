@@ -78,6 +78,22 @@ export function formatEnquiryNo(year: number, seq: number): string {
   return `ENQ-${year}-${String(seq).padStart(4, "0")}`;
 }
 
+// ---------- attendance ----------
+
+/**
+ * Deterministic dedupe key for a raw device event. Prefers the vendor event id;
+ * falls back to device + user + timestamp when the hardware gives no stable id.
+ */
+export function eventDedupeKey(
+  deviceCode: string,
+  deviceUserId: string,
+  occurredAt: string,
+  deviceEventId?: string,
+): string {
+  if (deviceEventId) return `${deviceCode}:${deviceEventId}`;
+  return `${deviceCode}:${deviceUserId}:${occurredAt}`;
+}
+
 // ---------- billing ----------
 
 export interface PaymentMethod {

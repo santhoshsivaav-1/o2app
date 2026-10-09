@@ -16,6 +16,58 @@ import {
   type MembershipRow,
 } from "../../../../components/memberships";
 import { InvoiceStatusBadge } from "../../../../components/billing";
+import { SourceBadge } from "../../../../components/attendance";
+
+interface AttendanceRow {
+  id: string;
+  date: string;
+  checkInAt: string;
+  source: string;
+}
+
+function MemberAttendance({ memberId }: { memberId: string }) {
+  const { has } = useAuth();
+  const history = useQuery({
+    queryKey: ["member-attendance", memberId],
+    queryFn: () =>
+      apiFetch<{ records: AttendanceRow[]; validity: string }>(`/attendance/by-member/${memberId}`),
+    enabled: has("attendance.read"),
+  });
+  if (!has("attendance.read"))
+    return (
+      <p className="mt-2 text-sm text-stone-500">Attendance is restricted to permitted staff.</p>
+    );
+  if (history.isLoading) return <p className="mt-2 text-sm text-stone-500">Loading…</p>;
+  const rows = history.data?.records ?? [];
+  return (
+    <div className="mt-2">
+      <p className="text-xs text-stone-500">
+        Membership validity now:{" "}
+        <span className="font-medium text-stone-700">{history.data?.validity ?? "—"}</span>
+        {" · "}
+        {rows.length} check-ins on record
+      </p>
+      {rows.length > 0 && (
+        <ul className="mt-2 max-h-56 space-y-1.5 overflow-y-auto">
+          {rows.slice(0, 30).map((a) => (
+            <li
+              key={a.id}
+              className="flex items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-sm"
+            >
+              <span className="font-medium tabular-nums">{a.date.slice(0, 10)}</span>
+              <span className="text-xs tabular-nums text-stone-500">
+                {a.checkInAt.slice(11, 16)}
+              </span>
+              <span className="ml-auto">
+                <SourceBadge source={a.source} />
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 interface MemberInvoice {
   id: string;
@@ -414,10 +466,15 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
       </div>
 
       <div className="card">
-        <h2 className="text-base font-semibold text-stone-900">Attendance</h2>
-        <p className="mt-1 text-sm text-stone-500">
-          Attendance history arrives with Phase 7 — every check-in links back to this profile.
-        </p>
+        <div className="flex items-center gap-2">
+          <h2 className="text-base font-semibold text-stone-900">Attendance</h2>
+          {has("attendance.correct") && (
+            <Link href="/attendance" className="btn-ghost ml-auto px-2.5 py-1 text-xs">
+              Open attendance →
+            </Link>
+          )}
+        </div>
+        <MemberAttendance memberId={m.id} />
       </div>
     </div>
   );

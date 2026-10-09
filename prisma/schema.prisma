@@ -123,6 +123,9 @@ model Member {
   payments          Payment[]
   credits           CreditAdjustment[]
   convertedFrom     Enquiry[]   @relation("EnquiryConversion")
+  deviceMappings    DeviceUserMapping[]
+  attendanceEvents  AttendanceEvent[]
+  attendanceRecords AttendanceRecord[]
 
   @@index([mobileNorm])
   @@index([status])
@@ -384,4 +387,106 @@ model FollowUp {
 
   @@index([enquiryId])
   @@index([dueAt])
+}
+
+model AttendanceDevice {
+  id                String              @id @default(uuid())
+  deviceCode        String              @unique
+  name              String
+  model             String?
+  apiKeyHash        String?
+  isActive          Boolean             @default(true)
+  duplicateWindowMin Int                @default(5)
+  lastSeenAt        DateTime?
+  createdById       String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  mappings          DeviceUserMapping[]
+  events            AttendanceEvent[]
+  syncRuns          DeviceSyncRun[]
+}
+
+model DeviceUserMapping {
+  id           String           @id @default(uuid())
+  deviceId     String
+  device       AttendanceDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceUserId String
+  memberId     String?
+  member       Member?          @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  status       String           @default("active")
+  createdById  String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([deviceId, deviceUserId])
+  @@index([memberId])
+}
+
+model AttendanceEvent {
+  id           String           @id @default(uuid())
+  deviceId     String?
+  device       AttendanceDevice? @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  dedupeKey    String           @unique
+  deviceUserId String
+  deviceEventId String?
+  occurredAt   DateTime
+  receivedAt   DateTime         @default(now())
+  source       String           @default("device")
+  status       String           @default("mapped")
+  memberId     String?
+  member       Member?          @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  recordId     String?
+  record       AttendanceRecord? @relation(fields: [recordId], references: [id], onDelete: SetNull)
+
+  @@index([deviceId])
+  @@index([occurredAt])
+  @@index([deviceUserId])
+  @@index([memberId])
+  @@index([status])
+}
+
+model AttendanceRecord {
+  id          String                @id @default(uuid())
+  memberId    String
+  member      Member                @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  date        DateTime              @db.Date
+  checkInAt   DateTime
+  source      String                @default("device")
+  createdById String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  events      AttendanceEvent[]
+  corrections AttendanceCorrection[]
+
+  @@unique([memberId, date])
+  @@index([date])
+  @@index([memberId])
+}
+
+model AttendanceCorrection {
+  id        String           @id @default(uuid())
+  recordId  String
+  record    AttendanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  before    String
+  after     String
+  actorId   String?
+  reason    String
+  createdAt DateTime         @default(now())
+
+  @@index([recordId])
+}
+
+model DeviceSyncRun {
+  id         String           @id @default(uuid())
+  deviceId   String
+  device     AttendanceDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  startedAt  DateTime         @default(now())
+  finishedAt DateTime?
+  fetched    Int              @default(0)
+  ingested   Int              @default(0)
+  duplicates Int              @default(0)
+  unmapped   Int              @default(0)
+  error      String?
+
+  @@index([deviceId])
 }

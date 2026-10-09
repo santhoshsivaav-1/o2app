@@ -107,6 +107,20 @@ Web: enquiry pipeline (filters incl. overdue), new-lead form, lead detail
 (edit/assign/status, follow-up timeline, convert wizard), follow-ups work queue.
 Tests: shared 17/17, api 10/10 with `RUN_AUTH_FLOW=1`.
 
+## Phase 7 status — DONE (attendance & device integration)
+
+Backend: provider-independent adapter contract + dev simulator, device registry
+with rotatable connector keys, idempotent event ingestion (raw events preserved,
+one record per member per day), device-user mapping + unmapped review, manual
+check-in, audited corrections, device health + sync history, CSV export.
+Hardware model still unknown — local PC connector deferred, honestly documented.
+Migration `phase7_attendance`.
+
+Web: attendance hub (daily list, manual check-in, unmapped queue, device
+management), member profile shows real attendance + live validity. Tests:
+shared 18/18, api 11/11 with `RUN_AUTH_FLOW=1`. See
+`docs/attendance-integration.md`.
+
 ## Quick links
 
 - `docs/requirements.md`, `docs/database-erd.md`, `docs/api.md`, `docs/roles-permissions.md`

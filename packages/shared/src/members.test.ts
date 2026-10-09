@@ -5,6 +5,7 @@ import {
   cleanMemberInput,
   diffDays,
   enquiryStatus,
+  eventDedupeKey,
   formatEnquiryNo,
   formatInvoiceNo,
   formatMemberCode,
@@ -131,4 +132,12 @@ test("enquiries: statuses + numbering", () => {
   assert.equal(isEnquiryTerminal("lost"), true);
   assert.equal(isEnquiryTerminal("interested"), false);
   assert.equal(formatEnquiryNo(2026, 3), "ENQ-2026-0003");
+});
+
+test("attendance dedupe keys are deterministic", () => {
+  assert.equal(eventDedupeKey("FP-01", "u7", "2026-01-01T09:00:00Z", "evt-9"), "FP-01:evt-9");
+  assert.equal(
+    eventDedupeKey("FP-01", "u7", "2026-01-01T09:00:00Z"),
+    "FP-01:u7:2026-01-01T09:00:00Z",
+  );
 });

@@ -106,6 +106,7 @@ export class CsrfGuard implements CanActivate {
     if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return true;
     const p: string = req.path ?? req.url ?? "";
     if (p.endsWith("/auth/login")) return true; // session-establishing call, no session yet
+    if (p.endsWith("/devices/events:ingest")) return true; // device-key auth, no browser session
     const sent = req.headers?.["x-csrf-token"];
     const expectedCookie = req.cookies?.["csrf_token"];
     if (typeof sent !== "string" || typeof expectedCookie !== "string" || !sent)

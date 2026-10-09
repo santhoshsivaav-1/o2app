@@ -1,6 +1,18 @@
-# Attendance Integration (Phase 0 — device UNKNOWN)
+# Attendance Integration (Phase 7 implemented — hardware still unknown)
 
-Status: manufacturer/model/protocol unknown → **adapter + simulator only** in Phases 1–8; local PC connector deferred until hardware confirmed.
+Status: manufacturer/model/protocol unknown → adapter interface + simulator live;
+local PC connector NOT built (deferred until hardware protocol/SDK is confirmed).
+
+Status: manufacturer/model/protocol unknown → **adapter + simulator only**; local PC connector deferred until hardware confirmed.
+
+## Implemented (Phase 7)
+
+- `AttendanceDeviceAdapter` interface + `SimulatedAdapter` in `apps/api/src/attendance/adapter.ts`.
+- Server-side HttpPush ingress: `POST /api/v1/devices/events:ingest` (per-device API key, rotatable/revocable, throttled, CSRF-exempt by design).
+- Raw `attendance_events` (immutable, unique dedupe key, idempotent replay) → derived one-record-per-member-per-day `attendance_records` (earliest scan wins; repeats marked duplicate, raw kept).
+- Explicit device↔member mapping + unmapped-user review queue (nothing silently dropped; mapping reprocesses pending scans).
+- Manual check-in + audited corrections (`attendance.correct`), device health + sync-run history, CSV export.
+- Attendance is recorded regardless of membership validity; validity is computed live and shown (front desk handles expiry conversations — documented choice, not a gap).
 
 ## Adapter interface (packages/shared + apps/api)
 
