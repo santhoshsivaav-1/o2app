@@ -14,3 +14,4 @@ turbo/
 .env
 .env.*
 !.env.example
+.turbo/
