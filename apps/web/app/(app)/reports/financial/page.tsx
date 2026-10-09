@@ -18,6 +18,18 @@ export default function FinancialReportsPage() {
     queryFn: () => apiFetch<any>(`/reports/billings${dateQuery}`),
   });
 
+  const { data: collections, isLoading: collectionsLoading } = useQuery({
+    queryKey: ["collections-report", start, end],
+    queryFn: () => apiFetch<any[]>(`/reports/financial/collections${dateQuery}`),
+    enabled: activeTab === 'collections',
+  });
+
+  const { data: outstanding, isLoading: outstandingLoading } = useQuery({
+    queryKey: ["outstanding-report"],
+    queryFn: () => apiFetch<any[]>(`/reports/financial/outstanding`),
+    enabled: activeTab === 'outstanding',
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex gap-2 border-b overflow-x-auto">
@@ -53,7 +65,7 @@ export default function FinancialReportsPage() {
             </div>
          </div>
          
-         {activeTab === 'packages' ? (
+         {activeTab === 'packages' && (
            billingsLoading ? (
              <p className="text-sm text-stone-500">Loading package data...</p>
            ) : (
@@ -81,11 +93,74 @@ export default function FinancialReportsPage() {
                </table>
              </div>
            )
-         ) : (
-           <div className="p-12 text-center text-stone-500 border-2 border-dashed rounded-lg">
-              {activeTab === 'collections' && "Daily Collections data grid will appear here (Requires GET /reports/financial/collections endpoint)"}
-              {activeTab === 'outstanding' && "Outstanding balances aging report will appear here (Requires GET /reports/financial/outstanding endpoint)"}
-           </div>
+         )}
+
+         {activeTab === 'collections' && (
+           collectionsLoading ? (
+             <p className="text-sm text-stone-500">Loading collections data...</p>
+           ) : (
+             <div className="overflow-x-auto">
+               <table className="w-full text-left text-sm text-stone-600">
+                 <thead className="border-b text-xs uppercase text-stone-500 bg-stone-50">
+                   <tr>
+                     <th className="py-2 px-4 font-semibold">Date</th>
+                     <th className="py-2 px-4 font-semibold">Member</th>
+                     <th className="py-2 px-4 font-semibold">Method</th>
+                     <th className="py-2 px-4 font-semibold text-right">Amount</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y">
+                   {collections?.map((p: any) => (
+                     <tr key={p.id} className="hover:bg-stone-50">
+                       <td className="py-3 px-4 whitespace-nowrap">{new Date(p.paidAt).toLocaleDateString()}</td>
+                       <td className="py-3 px-4 font-medium text-stone-900">{p.member.fullName} ({p.member.memberCode})</td>
+                       <td className="py-3 px-4 capitalize">{p.method}</td>
+                       <td className="py-3 px-4 text-right font-medium text-emerald-700">₹{p.amount}</td>
+                     </tr>
+                   ))}
+                   {collections?.length === 0 && (
+                     <tr><td colSpan={4} className="py-4 text-center text-stone-500">No collections found in this date range.</td></tr>
+                   )}
+                 </tbody>
+               </table>
+             </div>
+           )
+         )}
+
+         {activeTab === 'outstanding' && (
+           outstandingLoading ? (
+             <p className="text-sm text-stone-500">Loading outstanding balances...</p>
+           ) : (
+             <div className="overflow-x-auto">
+               <table className="w-full text-left text-sm text-stone-600">
+                 <thead className="border-b text-xs uppercase text-stone-500 bg-stone-50">
+                   <tr>
+                     <th className="py-2 px-4 font-semibold">Invoice No</th>
+                     <th className="py-2 px-4 font-semibold">Member</th>
+                     <th className="py-2 px-4 font-semibold">Issued Date</th>
+                     <th className="py-2 px-4 font-semibold text-right">Total</th>
+                     <th className="py-2 px-4 font-semibold text-right">Paid</th>
+                     <th className="py-2 px-4 font-semibold text-right">Due Amount</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y">
+                   {outstanding?.map((inv: any) => (
+                     <tr key={inv.id} className="hover:bg-stone-50">
+                       <td className="py-3 px-4 font-medium text-stone-900">{inv.invoiceNo}</td>
+                       <td className="py-3 px-4">{inv.member.fullName} ({inv.member.mobileNorm})</td>
+                       <td className="py-3 px-4 whitespace-nowrap">{new Date(inv.issuedAt).toLocaleDateString()}</td>
+                       <td className="py-3 px-4 text-right">₹{inv.total}</td>
+                       <td className="py-3 px-4 text-right">₹{inv.paidAmount}</td>
+                       <td className="py-3 px-4 text-right font-bold text-red-600">₹{inv.dueAmount}</td>
+                     </tr>
+                   ))}
+                   {outstanding?.length === 0 && (
+                     <tr><td colSpan={6} className="py-4 text-center text-stone-500">No outstanding invoices. All clear!</td></tr>
+                   )}
+                 </tbody>
+               </table>
+             </div>
+           )
          )}
       </div>
     </div>

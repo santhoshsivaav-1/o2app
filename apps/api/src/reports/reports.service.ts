@@ -198,4 +198,77 @@ export class ReportsService {
       packagePerformance: salesByPackage,
     };
   }
+
+  async getDailyCollections(startDate?: string, endDate?: string) {
+    const start = startDate ? new Date(startDate) : new Date(new Date().setHours(0,0,0,0));
+    const end = endDate ? new Date(endDate) : new Date(new Date().setHours(23,59,59,999));
+    
+    return this.prisma.payment.findMany({
+      where: { paidAt: { gte: start, lte: end } },
+      include: {
+        member: { select: { fullName: true, memberCode: true } }
+      },
+      orderBy: { paidAt: "desc" }
+    });
+  }
+
+  async getOutstandingBalances() {
+    const invoices = await this.prisma.invoice.findMany({
+      where: { status: { in: ["unpaid", "partial"] } },
+      include: {
+        member: { select: { fullName: true, memberCode: true, mobileNorm: true } },
+        allocations: { select: { amount: true } }
+      },
+      orderBy: { issuedAt: "asc" }
+    });
+
+    return invoices.map(inv => {
+      const paid = inv.allocations.reduce((sum, a) => sum + Number(a.amount), 0);
+      const due = Number(inv.total) - paid;
+      return {
+        ...inv,
+        paidAmount: paid,
+        dueAmount: due,
+      };
+    });
+  }
+
+  async getAttendanceReport(startDate?: string, endDate?: string) {
+    const start = startDate ? new Date(startDate) : new Date(new Date().setHours(0,0,0,0));
+    const end = endDate ? new Date(endDate) : new Date(new Date().setHours(23,59,59,999));
+
+    const checkIns = await this.prisma.attendanceRecord.findMany({
+      where: { date: { gte: start, lte: end } },
+      include: {
+        member: { select: { fullName: true, memberCode: true, mobileNorm: true } }
+      },
+      orderBy: { checkInAt: "desc" }
+    });
+
+    // Find absentees (Active members who haven't checked in within the last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const recentCheckIns = await this.prisma.attendanceRecord.findMany({
+      where: { date: { gte: sevenDaysAgo } },
+      select: { memberId: true }
+    });
+    const activeMemberIdsWithCheckIns = new Set(recentCheckIns.map(r => r.memberId));
+
+    const allActiveMemberships = await this.prisma.membership.findMany({
+      where: { status: "active" },
+      include: { member: { select: { id: true, fullName: true, mobileNorm: true, memberCode: true } } }
+    });
+
+    const absentees = allActiveMemberships
+      .filter(m => !activeMemberIdsWithCheckIns.has(m.memberId))
+      .map(m => m.member);
+      
+    // Deduplicate absentees (since one member could have multiple active memberships somehow)
+    const uniqueAbsentees = Array.from(new Map(absentees.map(a => [a.id, a])).values());
+
+    return {
+      checkIns,
+      absentees: uniqueAbsentees,
+    };
+  }
 }

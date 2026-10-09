@@ -35,4 +35,22 @@ export class ReportsController {
   getBillingsReport(@Query("start") start?: string, @Query("end") end?: string) {
     return this.reports.getBillingsReport(start, end);
   }
+
+  @Get("financial/collections")
+  @RequirePermissions("reports.read")
+  getDailyCollections(@Query("start") start?: string, @Query("end") end?: string) {
+    return this.reports.getDailyCollections(start, end);
+  }
+
+  @Get("financial/outstanding")
+  @RequirePermissions("reports.read")
+  getOutstandingBalances() {
+    return this.reports.getOutstandingBalances();
+  }
+
+  @Get("attendance")
+  @RequirePermissions("reports.read")
+  getAttendanceReport(@Query("start") start?: string, @Query("end") end?: string) {
+    return this.reports.getAttendanceReport(start, end);
+  }
 }
