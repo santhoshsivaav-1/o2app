@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ApiError, apiFetch } from "../../../lib/api";
 import { useAuth } from "../../../lib/auth";
 import {
@@ -11,6 +11,7 @@ import {
   type DeviceRow,
   type UnmappedRow,
 } from "../../../components/attendance";
+import { ValidityBadge } from "../../../components/memberships";
 
 type Tab = "daily" | "manual" | "unmapped" | "devices";
 
@@ -61,75 +62,358 @@ export default function AttendancePage() {
 
 /* ---------------- daily ---------------- */
 
+/* ---------------- daily roster ---------------- */
+
+interface RosterMember {
+  id: string;
+  memberCode: string;
+  fullName: string;
+  status: string;
+}
+
+function initials(name: string): string {
+  return name
+    .split(" ")
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
 function DailyTab() {
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const queryClient = useQueryClient();
+  const todayStr = () => new Date().toISOString().slice(0, 10);
+  const [date, setDate] = useState(todayStr);
   const [q, setQ] = useState("");
-  const list = useQuery({
-    queryKey: ["attendance-daily", date, q],
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  // memberId -> edited "HH:MM" (undefined = untouched)
+  const [edits, setEdits] = useState<Record<string, string | undefined>>({});
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(0);
+  const [savedFlash, setSavedFlash] = useState<string | null>(null);
+
+  const members = useQuery({
+    queryKey: ["roster-members", q, page, limit],
     queryFn: () =>
-      apiFetch<{ data: AttendanceRecordRow[]; meta: { total: number } }>(
-        `/attendance/daily?date=${date}${q ? `&q=${encodeURIComponent(q)}` : ""}`,
+      apiFetch<{ data: RosterMember[]; meta: { total: number } }>(
+        `/members?q=${encodeURIComponent(q)}&page=${page}&limit=${limit}`,
+      ),
+  });
+  const records = useQuery({
+    queryKey: ["roster-records", date],
+    queryFn: () =>
+      apiFetch<{ data: (AttendanceRecordRow & { validity?: string })[] }>(
+        `/attendance/daily?date=${date}&includeValidity=true&limit=500`,
       ),
   });
 
+  const byMember = useMemo(() => {
+    const map = new Map<string, AttendanceRecordRow & { validity?: string }>();
+    for (const r of records.data?.data ?? []) map.set(r.member.id, r);
+    return map;
+  }, [records.data]);
+
+  const rows = useMemo(
+    () => (members.data?.data ?? []).filter((m) => m.status !== "archived"),
+    [members.data],
+  );
+  const total = members.data?.meta.total ?? 0;
+  const pages = Math.max(1, Math.ceil(total / limit));
+
+  const timeOf = (memberId: string): string => {
+    if (edits[memberId] !== undefined) return edits[memberId] as string;
+    const rec = byMember.get(memberId);
+    return rec ? rec.checkInAt.slice(11, 16) : "";
+  };
+  const isDirty = (memberId: string): boolean => {
+    if (edits[memberId] === undefined) return false;
+    const rec = byMember.get(memberId);
+    return (edits[memberId] as string) !== (rec ? rec.checkInAt.slice(11, 16) : "");
+  };
+  const dirtyIds = rows.map((m) => m.id).filter(isDirty);
+  const present = byMember.size;
+  const manualCount = [...byMember.values()].filter((r) => r.source === "manual").length;
+
+  function shiftDay(delta: number) {
+    const d = new Date(date + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() + delta);
+    const next = d.toISOString().slice(0, 10);
+    if (next > todayStr()) return;
+    setDate(next);
+    setEdits({});
+    setRowErrors({});
+  }
+
+  async function saveAll() {
+    setRowErrors({});
+    setSavedFlash(null);
+    setSaving(1);
+    let done = 0;
+    const errors: Record<string, string> = {};
+    for (const memberId of dirtyIds) {
+      const rec = byMember.get(memberId);
+      const value = (edits[memberId] as string) ?? "";
+      try {
+        if (!rec && value) {
+          await apiFetch("/attendance/manual", {
+            method: "POST",
+            body: JSON.stringify({ memberId, date, time: value }),
+          });
+        } else if (rec && value && value !== rec.checkInAt.slice(11, 16)) {
+          await apiFetch(`/attendance/records/${rec.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ checkInTime: value, reason: "Daily roster edit" }),
+          });
+        }
+        // Clearing an existing record is not allowed — records are never deleted.
+        setEdits((e) => {
+          const next = { ...e };
+          delete next[memberId];
+          return next;
+        });
+        done++;
+        setSaving(done + 1);
+      } catch (e) {
+        errors[memberId] = e instanceof ApiError ? e.message : "Save failed";
+      }
+    }
+    setRowErrors(errors);
+    setSaving(0);
+    await queryClient.invalidateQueries({ queryKey: ["roster-records"] });
+    const failed = Object.keys(errors).length;
+    setSavedFlash(
+      failed === 0
+        ? `Saved ${done} change${done === 1 ? "" : "s"}.`
+        : `Saved ${done}, ${failed} failed — see rows.`,
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <div className="card flex flex-wrap items-end gap-3">
-        <div>
-          <label className="label">Date</label>
-          <input
-            className="input"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
-        </div>
-        <div className="min-w-52 flex-1">
-          <label className="label">Search present members</label>
-          <input
-            className="input"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Name, code or mobile"
-          />
-        </div>
-        <span className="badge">{list.data?.meta.total ?? 0} check-ins</span>
+      <div className="card flex flex-wrap items-center gap-2">
+        <button
+          className="btn-ghost px-2.5 py-1.5"
+          onClick={() => shiftDay(-1)}
+          aria-label="Previous day"
+        >
+          ‹
+        </button>
+        <input
+          className="input w-40"
+          type="date"
+          value={date}
+          max={todayStr()}
+          onChange={(e) => {
+            if (e.target.value && e.target.value <= todayStr()) {
+              setDate(e.target.value);
+              setEdits({});
+              setRowErrors({});
+            }
+          }}
+        />
+        <button
+          className="btn-ghost px-2.5 py-1.5 text-xs"
+          disabled={date === todayStr()}
+          onClick={() => {
+            setDate(todayStr());
+            setEdits({});
+            setRowErrors({});
+          }}
+        >
+          Today
+        </button>
+        <button
+          className="btn-ghost px-2.5 py-1.5"
+          onClick={() => shiftDay(1)}
+          disabled={date >= todayStr()}
+          aria-label="Next day"
+        >
+          ›
+        </button>
+        <button
+          className="btn-ghost px-2.5 py-1.5"
+          aria-label="Refresh"
+          onClick={() => {
+            members.refetch();
+            records.refetch();
+          }}
+        >
+          ↻
+        </button>
+        <span className="ml-auto flex items-center gap-2">
+          <span className="badge">{present} present</span>
+          {dirtyIds.length > 0 && <span className="badge-orange">{dirtyIds.length} unsaved</span>}
+          <button
+            className="btn-primary text-sm"
+            disabled={dirtyIds.length === 0 || saving > 0}
+            onClick={saveAll}
+          >
+            {saving > 0 ? `Saving ${saving}/${dirtyIds.length + 1}…` : "Save Changes"}
+          </button>
+        </span>
       </div>
+
+      {savedFlash && <p className="alert-ok">{savedFlash}</p>}
+
+      <div className="card flex flex-wrap items-center gap-3">
+        <input
+          className="input max-w-xs"
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setPage(1);
+          }}
+          placeholder="Search member name, code or mobile"
+        />
+        <p className="ml-auto text-xs text-stone-500">
+          Device {present - manualCount} · Manual {manualCount} · clearing a time is not allowed
+          (records are never deleted)
+        </p>
+      </div>
+
       <div className="table-card">
         <table className="table">
           <thead>
             <tr>
               <th>Member</th>
+              <th>Validity</th>
               <th>Check-in</th>
               <th>Source</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
-            {list.data?.data.map((a) => (
-              <tr key={a.id}>
-                <td>
-                  <Link
-                    href={`/members/${a.member.id}`}
-                    className="font-medium text-stone-900 hover:text-brand-700"
-                  >
-                    {a.member.fullName}
-                  </Link>
-                  <p className="text-xs text-stone-500">{a.member.memberCode}</p>
-                </td>
-                <td className="tabular-nums">{a.checkInAt.slice(11, 16)}</td>
-                <td>
-                  <SourceBadge source={a.source} />
-                </td>
-              </tr>
-            ))}
+            {rows.map((m) => {
+              const rec = byMember.get(m.id);
+              const value = timeOf(m.id);
+              const dirty = isDirty(m.id);
+              const err = rowErrors[m.id];
+              return (
+                <tr key={m.id}>
+                  <td>
+                    <span className="flex items-center gap-2.5">
+                      <span
+                        aria-hidden
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-bold text-sky-700"
+                      >
+                        {initials(m.fullName)}
+                      </span>
+                      <span>
+                        <Link
+                          href={`/members/${m.id}`}
+                          className="font-medium text-stone-900 hover:text-brand-700"
+                        >
+                          {m.fullName}
+                        </Link>
+                        <span className="block text-xs text-stone-500">{m.memberCode}</span>
+                      </span>
+                    </span>
+                  </td>
+                  <td>
+                    {rec?.validity ? (
+                      <ValidityBadge validity={rec.validity} />
+                    ) : (
+                      <span className="text-xs text-stone-400">—</span>
+                    )}
+                  </td>
+                  <td>
+                    <input
+                      className={`input w-28 tabular-nums ${dirty ? "border-brand-400 ring-2 ring-brand-500/20" : ""}`}
+                      type="time"
+                      value={value}
+                      onChange={(e) => setEdits((ed) => ({ ...ed, [m.id]: e.target.value }))}
+                      onBlur={(e) => {
+                        // Reverting an emptied existing record: blanks are not saved.
+                        if (!e.target.value && rec) {
+                          setEdits((ed) => {
+                            const next = { ...ed };
+                            delete next[m.id];
+                            return next;
+                          });
+                        }
+                      }}
+                    />
+                  </td>
+                  <td>
+                    {rec ? (
+                      <SourceBadge source={rec.source} />
+                    ) : (
+                      <span className="text-xs text-stone-400">—</span>
+                    )}
+                  </td>
+                  <td>
+                    {err ? (
+                      <span className="text-xs font-medium text-red-600">{err}</span>
+                    ) : dirty ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700">
+                        <span className="h-2 w-2 rounded-full bg-amber-500" /> Unsaved
+                      </span>
+                    ) : rec ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs text-stone-500">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500" /> Saved
+                      </span>
+                    ) : (
+                      <span className="text-xs text-stone-400">—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
-        {list.isLoading && <p className="p-4 text-sm text-stone-500">Loading…</p>}
-        {list.data?.data.length === 0 && (
-          <p className="p-8 text-center text-sm text-stone-500">
-            No check-ins recorded for this date.
-          </p>
-        )}
+        {members.isLoading && <p className="p-4 text-sm text-stone-500">Loading roster…</p>}
+        <div className="flex flex-wrap items-center gap-3 border-t border-stone-200 bg-stone-50 px-4 py-2.5 text-sm">
+          <span className="text-stone-500">
+            Showing {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of {total} members
+          </span>
+          <span className="ml-auto flex items-center gap-2">
+            <label className="text-xs text-stone-500">Rows per page</label>
+            <select
+              className="input w-20 py-1 text-sm"
+              value={limit}
+              onChange={(e) => {
+                setLimit(Number(e.target.value));
+                setPage(1);
+              }}
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </span>
+          <span className="text-xs text-stone-500">
+            Page {page} of {pages}
+          </span>
+          <button
+            className="btn-ghost px-2 py-1 text-xs"
+            disabled={page <= 1}
+            onClick={() => setPage(page - 1)}
+          >
+            ‹‹
+          </button>
+          <button
+            className="btn-ghost px-2 py-1 text-xs"
+            disabled={page <= 1}
+            onClick={() => setPage(page - 1)}
+          >
+            ‹
+          </button>
+          <button
+            className="btn-ghost px-2 py-1 text-xs"
+            disabled={page >= pages}
+            onClick={() => setPage(page + 1)}
+          >
+            ›
+          </button>
+          <button
+            className="btn-ghost px-2 py-1 text-xs"
+            disabled={page >= pages}
+            onClick={() => setPage(pages)}
+          >
+            ››
+          </button>
+        </div>
       </div>
     </div>
   );

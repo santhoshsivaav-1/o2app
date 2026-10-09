@@ -31,8 +31,14 @@ export class AttendanceController {
 
   @Get("attendance/daily")
   @RequirePermissions("attendance.read")
-  daily(@Query() query: { date?: string }) {
-    return this.attendance.listRecords({ date: query.date, page: "1", limit: "500" });
+  daily(@Query() query: { date?: string; q?: string; includeValidity?: string }) {
+    return this.attendance.listRecords({
+      date: query.date,
+      q: query.q,
+      includeValidity: query.includeValidity,
+      page: "1",
+      limit: "500",
+    });
   }
 
   @Get("attendance/by-member/:memberId")

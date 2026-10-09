@@ -161,4 +161,8 @@ export class AttendanceListQuery {
   @IsOptional()
   @Matches(DATE_RE)
   to?: string;
+
+  @IsOptional()
+  @IsIn(["true", "false"])
+  includeValidity?: string;
 }

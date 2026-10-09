@@ -6,7 +6,12 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { eventDedupeKey, toDateStrInTimezone } from "@o2app/shared";
+import {
+  eventDedupeKey,
+  membershipValidity,
+  todayInTimezone,
+  toDateStrInTimezone,
+} from "@o2app/shared";
 import { PrismaService } from "../prisma.service.js";
 import { AuditService } from "../audit.service.js";
 import { MembershipsService } from "../memberships/memberships.service.js";
@@ -514,6 +519,7 @@ export class AttendanceService {
     to?: string;
     page?: string;
     limit?: string;
+    includeValidity?: string;
   }) {
     const page = Math.max(1, Number(query.page ?? 1) || 1);
     const limit = Math.min(100, Math.max(1, Number(query.limit ?? 20) || 20));
@@ -549,7 +555,36 @@ export class AttendanceService {
         },
       }),
     ]);
-    return { data, meta: { page, limit, total } };
+    if (query.includeValidity !== "true") return { data, meta: { page, limit, total } };
+    // One extra query for the whole page: latest membership per member.
+    const memberIds = [...new Set(data.map((r) => r.memberId))];
+    const memberships = await this.prisma.membership.findMany({
+      where: { memberId: { in: memberIds } },
+      orderBy: { startDate: "desc" },
+      select: { memberId: true, startDate: true, endDate: true, status: true },
+    });
+    const latest = new Map<string, (typeof memberships)[number]>();
+    for (const m of memberships) {
+      if (!latest.has(m.memberId)) latest.set(m.memberId, m);
+    }
+    const today = todayInTimezone(this.tz());
+    return {
+      data: data.map((r) => {
+        const m = latest.get(r.memberId);
+        return {
+          ...r,
+          validity: m
+            ? membershipValidity(
+                m.startDate.toISOString().slice(0, 10),
+                m.endDate.toISOString().slice(0, 10),
+                today,
+                m.status as "active" | "suspended" | "cancelled",
+              )
+            : "none",
+        };
+      }),
+      meta: { page, limit, total },
+    };
   }
 
   async memberHistory(memberId: string) {
