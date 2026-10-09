@@ -82,6 +82,19 @@ GST total preview, detail page (invoice box, manage actions, renewal timeline),
 member profile shows real membership history. Tests: shared 15/15, api 8/8 with
 `RUN_AUTH_FLOW=1`. Rules locked in `docs/membership-rules.md`.
 
+## Phase 5 status — DONE (billing & payments)
+
+Backend: payment recording with allocations (same-member, ≤ outstanding checks),
+overpayment → member credit, race-safe idempotency, refunds as separate audited
+events (`payments.refund`), derived invoice statuses, collections / outstanding /
+refund reports + CSV exports. Migration `phase5_payments`.
+
+Web: billing hub (collect with open-invoice allocation, payments, invoices,
+financial reports), invoice detail, printable receipts with manual-verification
+notice + refund action, member profile shows real invoices & payment history.
+Tests: shared 16/16, api 9/9 with `RUN_AUTH_FLOW=1`. Rules in
+`docs/billing-rules.md`.
+
 ## Quick links
 
 - `docs/requirements.md`, `docs/database-erd.md`, `docs/api.md`, `docs/roles-permissions.md`

@@ -477,3 +477,260 @@ test("phase4: membership lifecycle + atomic invoices", { skip: !RUN }, async () 
     await prisma.$disconnect();
   }
 });
+
+test("phase5: payments, refunds, reports", { skip: !RUN }, async () => {
+  const FLOW_PORT = PORT + 3;
+  const { app, prisma } = await bootApp(FLOW_PORT);
+  const base = `http://localhost:${FLOW_PORT}/api/v1`;
+  const call = (method: string, path: string, jar: Jar, body?: unknown, csrf = true) =>
+    reqBase(base + path, method, jar, body, csrf);
+  const memberIds: string[] = [];
+  const packageIds: string[] = [];
+  const membershipIds: string[] = [];
+  const paymentIds: string[] = [];
+  let recepId = "";
+
+  const N = (v: unknown) => Number(v);
+  try {
+    const ownerEmail = process.env.OWNER_EMAIL ?? "";
+    const ownerPass = process.env.OWNER_PASSWORD ?? "";
+    let r = await call("POST", "/auth/login", {}, { email: ownerEmail, password: ownerPass });
+    assert.equal(r.status, 200);
+    const owner: Jar = r.jar;
+
+    r = await call("GET", "/genders", owner);
+    const male = (r.json as { id: string; name: string }[])[0];
+    const mkMember = async (name: string, mobile: string) => {
+      const res = await call("POST", "/members", owner, {
+        fullName: name,
+        mobile,
+        genderId: male.id,
+      });
+      assert.equal(res.status, 201);
+      memberIds.push(res.json.id as string);
+      return res.json.id as string;
+    };
+    const m1 = await mkMember("Pay Five", "9000511122");
+    const m2 = await mkMember("Pay Other", "9000522233");
+
+    r = await call("POST", "/packages", owner, {
+      name: "Flow Pay Pack",
+      durationValue: 1,
+      durationUnit: "MONTH",
+      price: 1000,
+      registrationFee: 100,
+      gstPercent: 18,
+    });
+    assert.equal(r.status, 201);
+    const pkg = r.json.id as string;
+    packageIds.push(pkg);
+
+    const sell = async (memberId: string, key: string) => {
+      const res = await call("POST", "/memberships", owner, {
+        memberId,
+        packageId: pkg,
+        idempotencyKey: key,
+      });
+      assert.equal(res.status, 201);
+      membershipIds.push(res.json.id as string);
+      return res.json as { id: string; total: string; invoice: { id: string; invoiceNo: string } };
+    };
+    const s1 = await sell(m1, "p5-s1");
+    assert.equal(N(s1.total), 1298); // (1000+100) + 18%
+
+    // 1. Full payment -> paid, outstanding 0.
+    const pay = async (body: unknown, jar: Jar = owner) => call("POST", "/payments", jar, body);
+    r = await pay({
+      memberId: m1,
+      method: "cash",
+      amount: 1298,
+      allocations: [{ invoiceId: s1.invoice.id, amount: 1298 }],
+      idempotencyKey: "p5-pay-1",
+    });
+    assert.equal(r.status, 201);
+    const pay1 = (r.json.payment as { id: string }).id as string;
+    paymentIds.push(pay1);
+    r = await call("GET", `/invoices/${s1.invoice.id}`, owner);
+    assert.equal(r.json.status, "paid");
+    assert.equal(N(r.json.outstanding), 0);
+
+    // 2. Partials accumulate -> paid.
+    const s2 = await sell(m1, "p5-s2");
+    r = await pay({
+      memberId: m1,
+      method: "upi_manual",
+      reference: "UPI-REF-1",
+      amount: 500,
+      allocations: [{ invoiceId: s2.invoice.id, amount: 500 }],
+    });
+    assert.equal(r.status, 201);
+    paymentIds.push((r.json.payment as { id: string }).id as string);
+    r = await call("GET", `/invoices/${s2.invoice.id}`, owner);
+    assert.equal(r.json.status, "partial");
+    assert.equal(N(r.json.outstanding), 798);
+    r = await pay({
+      memberId: m1,
+      method: "cash",
+      amount: 798,
+      allocations: [{ invoiceId: s2.invoice.id, amount: 798 }],
+    });
+    assert.equal(r.status, 201);
+    paymentIds.push((r.json.payment as { id: string }).id as string);
+    r = await call("GET", `/invoices/${s2.invoice.id}`, owner);
+    assert.equal(r.json.status, "paid");
+
+    // 3. Overpayment becomes member credit.
+    const s3 = await sell(m1, "p5-s3");
+    r = await pay({
+      memberId: m1,
+      method: "cash",
+      amount: 1500,
+      allocations: [{ invoiceId: s3.invoice.id, amount: 1298 }],
+    });
+    assert.equal(r.status, 201);
+    paymentIds.push((r.json.payment as { id: string }).id as string);
+    assert.equal(N(r.json.credit.remaining), 202);
+
+    // 4. Guardrails: overallocation, cross-member, bad method, missing reference.
+    assert.equal(
+      (
+        await pay({
+          memberId: m1,
+          method: "cash",
+          amount: 100,
+          allocations: [{ invoiceId: s3.invoice.id, amount: 100 }],
+        })
+      ).status,
+      400,
+    );
+    const sOther = await sell(m2, "p5-s4");
+    assert.equal(
+      (
+        await pay({
+          memberId: m1,
+          method: "cash",
+          amount: 100,
+          allocations: [{ invoiceId: sOther.invoice.id, amount: 100 }],
+        })
+      ).status,
+      400,
+    );
+    assert.equal((await pay({ memberId: m1, method: "bitcoin", amount: 100 })).status, 400);
+    assert.equal((await pay({ memberId: m1, method: "upi_manual", amount: 100 })).status, 400);
+
+    // 5. Idempotent retry + concurrent double-submit -> exactly one payment.
+    r = await pay({
+      memberId: m1,
+      method: "cash",
+      amount: 1298,
+      allocations: [{ invoiceId: s1.invoice.id, amount: 1 }],
+      idempotencyKey: "p5-pay-1",
+    });
+    assert.ok(r.status === 200 || r.status === 201);
+    assert.equal((r.json.payment as { id: string }).id, pay1);
+    assert.equal(r.json.idempotentReplay, true);
+    const [c1, c2] = await Promise.all([
+      pay({ memberId: m1, method: "cash", amount: 50, idempotencyKey: "p5-concurrent" }),
+      pay({ memberId: m1, method: "cash", amount: 50, idempotencyKey: "p5-concurrent" }),
+    ]);
+    assert.ok(
+      [200, 201].includes(c1.status) && [200, 201].includes(c2.status),
+      `concurrent statuses ${c1.status}/${c2.status}: ${JSON.stringify(c1.json)} ${JSON.stringify(c2.json)}`,
+    );
+    const cid1 = (c1.json.payment as { id: string } | undefined)?.id;
+    const cid2 = (c2.json.payment as { id: string } | undefined)?.id;
+    assert.ok(
+      cid1 && cid2,
+      `both responses carry payment ids: ${JSON.stringify(c1.json).slice(0, 200)}`,
+    );
+    assert.equal(cid1, cid2);
+    paymentIds.push(cid1 as string);
+    const dupes = await prisma.payment.count({ where: { idempotencyKey: "p5-concurrent" } });
+    assert.equal(dupes, 1);
+
+    // 6. Refunds: partial ok, over-refund blocked, permission gated.
+    r = await call("POST", `/payments/${pay1}/refund`, owner, {
+      amount: 200,
+      reason: "duplicate charge return",
+      invoiceId: s1.invoice.id,
+    });
+    assert.equal(r.status, 201);
+    assert.equal(
+      (await call("POST", `/payments/${pay1}/refund`, owner, { amount: 5000, reason: "too much" }))
+        .status,
+      400,
+    );
+    const recepRole = await prisma.role.findUniqueOrThrow({ where: { name: "receptionist" } });
+    r = await call("POST", "/users", owner, {
+      name: "Pay Recep",
+      email: "pay-recep@o2.test",
+      password: "Recep-Pay-05",
+      roleIds: [recepRole.id],
+    });
+    recepId = r.json.id as string;
+    r = await call(
+      "POST",
+      "/auth/login",
+      {},
+      { email: "pay-recep@o2.test", password: "Recep-Pay-05" },
+    );
+    const recep: Jar = r.jar;
+    assert.equal(
+      (await call("POST", `/payments/${pay1}/refund`, recep, { amount: 10, reason: "x" })).status,
+      403,
+    );
+    // receptionist CAN record payments and read invoices.
+    r = await call("POST", "/payments", recep, { memberId: m1, method: "cash", amount: 10 });
+    assert.equal(r.status, 201);
+    paymentIds.push((r.json.payment as { id: string }).id as string);
+    assert.equal((await call("GET", `/invoices/${s1.invoice.id}`, recep)).status, 200);
+
+    // 7. Reports reconcile against source records.
+    const from = "2020-01-01";
+    const to = "2030-12-31";
+    r = await call("GET", `/reports/collections?from=${from}&to=${to}`, owner);
+    assert.equal(r.status, 200);
+    const paid = await prisma.payment.aggregate({ _sum: { amount: true } });
+    const ref = await prisma.refund.aggregate({ _sum: { amount: true } });
+    assert.equal(r.json.totals.paid, N(paid._sum.amount));
+    assert.equal(r.json.totals.refunded, N(ref._sum.amount));
+    assert.equal(
+      r.json.totals.net,
+      Math.round((N(paid._sum.amount) - N(ref._sum.amount)) * 100) / 100,
+    );
+    r = await call("GET", "/reports/outstanding", owner);
+    assert.equal(r.status, 200);
+    assert.ok(!(r.json as unknown[]).some((o: any) => o.id === s1.invoice.id));
+    r = await call("GET", `/reports/refunds?from=${from}&to=${to}`, owner);
+    assert.equal(r.status, 200);
+    assert.equal(r.json.total, 200);
+    // exports require data.export (owner has it).
+    const exp = await fetch(base + "/members/export", { headers: {} });
+    assert.ok([401, 403].includes(exp.status)); // no cookie -> rejected
+  } finally {
+    const payIds = paymentIds.filter(Boolean);
+    const memIds = membershipIds.filter(Boolean);
+    const mbrIds = memberIds.filter(Boolean);
+    const pkgIds = packageIds.filter(Boolean);
+    try {
+      await prisma.refund.deleteMany({ where: { paymentId: { in: payIds } } });
+      await prisma.creditAdjustment.deleteMany({ where: { sourcePaymentId: { in: payIds } } });
+      await prisma.payment.deleteMany({ where: { id: { in: payIds } } });
+      await prisma.renewalEvent.deleteMany({ where: { membershipId: { in: memIds } } });
+      await prisma.membershipStatusHistory.deleteMany({ where: { membershipId: { in: memIds } } });
+      await prisma.invoice.deleteMany({ where: { membership: { id: { in: memIds } } } });
+      await prisma.membership.deleteMany({ where: { id: { in: memIds } } });
+      await prisma.package.deleteMany({ where: { id: { in: pkgIds } } });
+      if (recepId) {
+        await prisma.session.deleteMany({ where: { userId: recepId } });
+        await prisma.userRole.deleteMany({ where: { userId: recepId } });
+        await prisma.user.deleteMany({ where: { id: recepId } });
+      }
+      await prisma.memberNote.deleteMany({ where: { memberId: { in: mbrIds } } });
+      await prisma.member.deleteMany({ where: { id: { in: mbrIds } } });
+    } finally {
+      await app.close();
+      await prisma.$disconnect();
+    }
+  }
+});

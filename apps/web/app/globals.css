@@ -141,3 +141,27 @@ select.input {
 .link {
   @apply font-medium text-brand-700 hover:text-brand-800 hover:underline;
 }
+
+/* ---------- print (receipts, invoices) ---------- */
+@media print {
+  aside,
+  header.sticky,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+  }
+
+  main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  .card,
+  .table-card {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+}

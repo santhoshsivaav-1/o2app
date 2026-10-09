@@ -15,6 +15,58 @@ import {
   inr,
   type MembershipRow,
 } from "../../../../components/memberships";
+import { InvoiceStatusBadge } from "../../../../components/billing";
+
+interface MemberInvoice {
+  id: string;
+  invoiceNo: string;
+  total: string;
+  paid: number;
+  outstanding: number;
+  status: string;
+}
+
+function MemberInvoices({ memberId }: { memberId: string }) {
+  const { has } = useAuth();
+  const list = useQuery({
+    queryKey: ["member-invoices", memberId],
+    queryFn: () => apiFetch<{ data: MemberInvoice[] }>(`/invoices?memberId=${memberId}&limit=20`),
+    enabled: has("payments.collect"),
+  });
+  if (!has("payments.collect"))
+    return (
+      <p className="mt-2 text-sm text-stone-500">
+        Financial records are restricted to front-desk staff.
+      </p>
+    );
+  if (list.isLoading) return <p className="mt-2 text-sm text-stone-500">Loading…</p>;
+  if (!list.data || list.data.data.length === 0)
+    return <p className="mt-2 text-sm text-stone-500">No invoices yet.</p>;
+  return (
+    <ul className="mt-3 space-y-2">
+      {list.data.data.map((inv) => (
+        <li
+          key={inv.id}
+          className="flex flex-wrap items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm"
+        >
+          <Link
+            href={`/billing/invoices/${inv.id}`}
+            className="font-medium text-stone-900 hover:text-brand-700"
+          >
+            {inv.invoiceNo}
+          </Link>
+          <span className="text-xs tabular-nums text-stone-500">
+            {inr(inv.total)} · paid {inr(inv.paid)}
+          </span>
+          <span className="ml-auto flex items-center gap-2">
+            <span className="text-xs font-medium tabular-nums">due {inr(inv.outstanding)}</span>
+            <InvoiceStatusBadge status={inv.status} />
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 type FormValues = z.infer<typeof memberSchema>;
 
@@ -347,10 +399,24 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
       </div>
 
       <div className="card">
-        <h2 className="text-base font-semibold text-stone-900">Payments & attendance</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-base font-semibold text-stone-900">Invoices & payments</h2>
+          {has("payments.collect") && (
+            <Link
+              href={`/billing?memberId=${m.id}`}
+              className="btn-primary ml-auto px-2.5 py-1 text-xs"
+            >
+              + Record payment
+            </Link>
+          )}
+        </div>
+        <MemberInvoices memberId={m.id} />
+      </div>
+
+      <div className="card">
+        <h2 className="text-base font-semibold text-stone-900">Attendance</h2>
         <p className="mt-1 text-sm text-stone-500">
-          Payment history arrives with Phase 5 billing and attendance history with Phase 7 — both
-          link back to this profile.
+          Attendance history arrives with Phase 7 — every check-in links back to this profile.
         </p>
       </div>
     </div>

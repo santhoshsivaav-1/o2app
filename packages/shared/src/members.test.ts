@@ -6,11 +6,14 @@ import {
   diffDays,
   formatInvoiceNo,
   formatMemberCode,
+  invoiceOutstanding,
   memberSchema,
   membershipValidity,
   normalizeMobile,
   packageDurationDays,
   packageSchema,
+  paymentMethod,
+  recomputeInvoiceStatus,
   renewalStartDate,
   toDateStrInTimezone,
 } from "./members.js";
@@ -104,4 +107,17 @@ test("gym-timezone dates", () => {
   // 2026-01-01T18:30Z is 2026-01-02 00:00 in Kolkata — UTC date alone would be wrong.
   assert.equal(toDateStrInTimezone(new Date("2026-01-01T18:30:00Z"), "Asia/Kolkata"), "2026-01-02");
   assert.equal(toDateStrInTimezone(new Date("2026-01-01T18:00:00Z"), "Asia/Kolkata"), "2026-01-01");
+});
+
+test("billing: methods, outstanding, status", () => {
+  assert.equal(paymentMethod("upi_manual")?.needsReference, true);
+  assert.equal(paymentMethod("cash")?.needsReference, false);
+  assert.equal(paymentMethod("nope"), undefined);
+  assert.equal(invoiceOutstanding(1168.2, 500), 668.2);
+  assert.equal(invoiceOutstanding(1000, 1000), 0);
+  assert.equal(recomputeInvoiceStatus(1000, 0, 0), "unpaid");
+  assert.equal(recomputeInvoiceStatus(1000, 400, 0), "partial");
+  assert.equal(recomputeInvoiceStatus(1000, 1000, 0), "paid");
+  assert.equal(recomputeInvoiceStatus(1000, 1000, 1000), "refunded");
+  assert.equal(recomputeInvoiceStatus(1000, 1000, 200), "paid");
 });

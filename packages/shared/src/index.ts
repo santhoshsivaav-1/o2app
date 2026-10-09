@@ -1,5 +1,7 @@
 export * from "./members.js";
 
+import { round2 } from "./members.js";
+
 export type RoleName = "owner" | "manager" | "receptionist" | "trainer" | "accountant";
 
 export const PERMISSIONS = [
@@ -36,8 +38,6 @@ export interface InvoiceCalc {
   gst: number;
   total: number;
 }
-
-const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 export function calcInvoice(input: InvoiceInput): InvoiceCalc {
   const subtotal = round2(input.subtotal);

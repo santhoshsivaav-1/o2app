@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
 /** Keep only digits; for Indian numbers keep the last 10 (drops +91/0 prefix). */
 export function normalizeMobile(raw: string): string {
   const digits = raw.replace(/\D/g, "");
@@ -33,8 +35,10 @@ export function diffDays(from: string, to: string): number {
   );
 }
 
-/** YYYY-MM-DD of an instant in the gym's timezone (default Asia/Kolkata). */
-export function toDateStrInTimezone(date: Date, tz: string): string {
+/** YYYY-MM-DD of an instant in the gym's timezone (default Asia/Kolkata). */ export function toDateStrInTimezone(
+  date: Date,
+  tz: string,
+): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: tz,
     year: "numeric",
@@ -45,6 +49,45 @@ export function toDateStrInTimezone(date: Date, tz: string): string {
 
 export function todayInTimezone(tz: string): string {
   return toDateStrInTimezone(new Date(), tz);
+}
+
+// ---------- billing ----------
+
+export interface PaymentMethod {
+  key: string;
+  label: string;
+  needsReference: boolean;
+}
+
+/** All Phase-5 methods are manually recorded — none is gateway-confirmed. */
+export const PAYMENT_METHODS: PaymentMethod[] = [
+  { key: "cash", label: "Cash", needsReference: false },
+  { key: "upi_manual", label: "UPI (recorded manually)", needsReference: true },
+  { key: "card_manual", label: "Card (recorded manually)", needsReference: true },
+  { key: "bank_transfer_manual", label: "Bank transfer (manual)", needsReference: true },
+  { key: "other", label: "Other", needsReference: false },
+];
+
+export function paymentMethod(key: string): PaymentMethod | undefined {
+  return PAYMENT_METHODS.find((m) => m.key === key);
+}
+
+/** Outstanding is always derived: total − allocated. Refunds are separate events. */
+export function invoiceOutstanding(total: number, paid: number): number {
+  return round2(total - paid);
+}
+
+export type InvoiceStatus = "unpaid" | "partial" | "paid" | "refunded";
+
+export function recomputeInvoiceStatus(
+  total: number,
+  paid: number,
+  refunded: number,
+): InvoiceStatus {
+  if (refunded > 0 && round2(paid - refunded) <= 0) return "refunded";
+  if (paid <= 0) return "unpaid";
+  if (round2(paid) >= round2(total)) return "paid";
+  return "partial";
 }
 
 /**
