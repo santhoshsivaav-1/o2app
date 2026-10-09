@@ -3,7 +3,7 @@ services:
     name: o2app-api
     runtime: node
     rootDir: apps/api
-    buildCommand: pnpm install --prod=false && pnpm build && pnpm db:deploy
+    buildCommand: pnpm install --prod=false && pnpm --filter @o2app/shared build && pnpm build && pnpm db:deploy
     startCommand: node dist/main.js
     healthCheckPath: /api/v1/health/ready
     autoDeploy: true
@@ -36,7 +36,7 @@ services:
     name: o2app-web
     runtime: node
     rootDir: apps/web
-    buildCommand: pnpm install --prod=false && pnpm build
+    buildCommand: pnpm install --prod=false && pnpm --filter @o2app/shared build && pnpm build
     startCommand: node .next/standalone/apps/web/server.js
     healthCheckPath: /healthz
     autoDeploy: true
