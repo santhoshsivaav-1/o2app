@@ -15,5 +15,5 @@ turbo/
 .env.*
 !.env.example
 .turbo/
-cookies.txt*
+cookies*.txt
 *.log
