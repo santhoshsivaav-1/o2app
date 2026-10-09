@@ -9,6 +9,12 @@ import { useForm } from "react-hook-form";
 import type { z } from "zod";
 import { ApiError, apiFetch } from "../../../../lib/api";
 import { useAuth } from "../../../../lib/auth";
+import {
+  ValidityBadge,
+  dateOnly,
+  inr,
+  type MembershipRow,
+} from "../../../../components/memberships";
 
 type FormValues = z.infer<typeof memberSchema>;
 
@@ -34,6 +40,43 @@ interface Member {
 }
 
 const err = "field-err";
+
+function MembershipHistory({ memberId }: { memberId: string }) {
+  const history = useQuery({
+    queryKey: ["member-memberships", memberId],
+    queryFn: () =>
+      apiFetch<{ data: MembershipRow[] }>(
+        `/memberships?memberId=${memberId}&limit=20&sort=startDate&order=desc`,
+      ),
+  });
+  if (history.isLoading) return <p className="mt-2 text-sm text-stone-500">Loading…</p>;
+  if (!history.data || history.data.data.length === 0)
+    return <p className="mt-2 text-sm text-stone-500">No memberships yet.</p>;
+  return (
+    <ul className="mt-3 space-y-2">
+      {history.data.data.map((ms) => (
+        <li
+          key={ms.id}
+          className="flex flex-wrap items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm"
+        >
+          <Link
+            href={`/memberships/${ms.id}`}
+            className="font-medium text-stone-900 hover:text-brand-700"
+          >
+            {ms.package.name}
+          </Link>
+          <span className="text-xs tabular-nums text-stone-500">
+            {dateOnly(ms.startDate)} → {dateOnly(ms.endDate)}
+          </span>
+          <span className="text-xs font-medium tabular-nums text-stone-700">{inr(ms.total)}</span>
+          <span className="ml-auto">
+            <ValidityBadge validity={ms.validity} />
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 function StatusBadge({ status }: { status: string }) {
   if (status === "active") return <span className="badge-green">Active</span>;
@@ -289,10 +332,25 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
       </div>
 
       <div className="card">
-        <h2 className="text-base font-semibold text-stone-900">History</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-base font-semibold text-stone-900">Memberships</h2>
+          {has("memberships.create") && (
+            <Link
+              href={`/memberships/new?memberId=${m.id}`}
+              className="btn-primary ml-auto px-2.5 py-1 text-xs"
+            >
+              + New membership
+            </Link>
+          )}
+        </div>
+        <MembershipHistory memberId={m.id} />
+      </div>
+
+      <div className="card">
+        <h2 className="text-base font-semibold text-stone-900">Payments & attendance</h2>
         <p className="mt-1 text-sm text-stone-500">
-          Memberships, payments and attendance history appear here in Phases 4, 5 and 7 — every
-          record is preserved and linked to this profile.
+          Payment history arrives with Phase 5 billing and attendance history with Phase 7 — both
+          link back to this profile.
         </p>
       </div>
     </div>

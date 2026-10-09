@@ -107,16 +107,3 @@ export function calcEndDate(startDate: string, durationDays: number): string {
 export function dedupeKey(deviceId: string, deviceEventId: string): string {
   return `${deviceId}:${deviceEventId}`;
 }
-
-export function membershipStatus(
-  start: string,
-  end: string,
-  today: string,
-  override?: string,
-): string {
-  if (override === "suspended" || override === "cancelled" || override === "pending_payment")
-    return override;
-  if (today < start) return "scheduled";
-  if (today > end) return "expired";
-  return "active";
-}

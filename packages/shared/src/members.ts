@@ -15,6 +15,70 @@ export function formatMemberCode(year: number, seq: number): string {
   return `O2-${year}-${String(seq).padStart(4, "0")}`;
 }
 
+export function formatInvoiceNo(year: number, seq: number): string {
+  return `INV-${year}-${String(seq).padStart(4, "0")}`;
+}
+
+const DAY_MS = 24 * 3600 * 1000;
+
+export function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+export function diffDays(from: string, to: string): number {
+  return Math.round(
+    (new Date(to + "T00:00:00Z").getTime() - new Date(from + "T00:00:00Z").getTime()) / DAY_MS,
+  );
+}
+
+/** YYYY-MM-DD of an instant in the gym's timezone (default Asia/Kolkata). */
+export function toDateStrInTimezone(date: Date, tz: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+export function todayInTimezone(tz: string): string {
+  return toDateStrInTimezone(new Date(), tz);
+}
+
+/**
+ * Renewal start rule (locked): never overlap. Early/on-time renewals continue
+ * the day after the previous end; late renewals start on the requested date.
+ */
+export function renewalStartDate(prevEnd: string, requestedStart: string): string {
+  return requestedStart > prevEnd ? requestedStart : addDays(prevEnd, 1);
+}
+
+export type LifecycleStatus = "active" | "suspended" | "cancelled";
+
+export type Validity = "scheduled" | "active" | "expired" | "suspended" | "cancelled";
+
+export function membershipStatus(start: string, end: string, today: string): Validity {
+  if (today < start) return "scheduled";
+  if (today > end) return "expired";
+  return "active";
+}
+
+/**
+ * Single validity definition used by dashboard, profile, attendance eligibility,
+ * expiry lists, notifications and reports.
+ */
+export function membershipValidity(
+  start: string,
+  end: string,
+  today: string,
+  status: LifecycleStatus,
+): Validity {
+  if (status === "suspended" || status === "cancelled") return status;
+  return membershipStatus(start, end, today);
+}
+
 export const memberStatusSchema = z.enum(["active", "inactive", "archived"]);
 export type MemberStatus = z.infer<typeof memberStatusSchema>;
 

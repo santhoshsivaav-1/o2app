@@ -45,3 +45,5 @@ services:
         value: production
       - key: NEXT_PUBLIC_API_URL
         value: https://o2app-api.onrender.com/api/v1
+      - key: NEXT_PUBLIC_GST_DEFAULT_PCT
+        value: "18"

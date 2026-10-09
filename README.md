@@ -68,6 +68,20 @@ registration with duplicate-confirmation flow, member profile (edit, notes,
 archive/restore), packages manager, honest Coming-Soon stubs for Phases 4–8 so no
 nav 404s. Tests: shared 11/11, api 7/7 with `RUN_AUTH_FLOW=1`.
 
+## Phase 4 status — DONE (membership lifecycle + invoices)
+
+Backend: sale / renew / extend / suspend / resume / cancel with transactional
+membership + `INV-YYYY-####` invoice creation, idempotent retries, discount caps,
+inactive-package rules, gym-timezone validity (`scheduled/active/expired/
+suspended/cancelled`), `by-member/current` endpoint for attendance + UI.
+Migration `phase4_memberships_invoices`. Invoices stay `unpaid` until Phase 5
+records payments.
+
+Web: membership directory (validity/package/expiry filters), sale wizard with live
+GST total preview, detail page (invoice box, manage actions, renewal timeline),
+member profile shows real membership history. Tests: shared 15/15, api 8/8 with
+`RUN_AUTH_FLOW=1`. Rules locked in `docs/membership-rules.md`.
+
 ## Quick links
 
 - `docs/requirements.md`, `docs/database-erd.md`, `docs/api.md`, `docs/roles-permissions.md`

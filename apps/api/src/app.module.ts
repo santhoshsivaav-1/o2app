@@ -14,6 +14,8 @@ import { MembersService } from "./members/members.service.js";
 import { MembersController } from "./members/members.controller.js";
 import { PackagesController, PackagesService } from "./members/packages.controller.js";
 import { GendersController } from "./members/genders.controller.js";
+import { MembershipsService } from "./memberships/memberships.service.js";
+import { MembershipsController } from "./memberships/memberships.controller.js";
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ name: "default", ttl: 60000, limit: 120 }])],
@@ -25,6 +27,7 @@ import { GendersController } from "./members/genders.controller.js";
     MembersController,
     PackagesController,
     GendersController,
+    MembershipsController,
   ],
   providers: [
     PrismaService,
@@ -33,6 +36,7 @@ import { GendersController } from "./members/genders.controller.js";
     SequenceService,
     MembersService,
     PackagesService,
+    MembershipsService,
     Reflector,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },

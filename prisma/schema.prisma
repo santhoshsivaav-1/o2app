@@ -117,6 +117,8 @@ model Member {
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   memberNotes       MemberNote[]
+  memberships       Membership[]
+  invoices          Invoice[]
 
   @@index([mobileNorm])
   @@index([status])
@@ -148,10 +150,11 @@ model Package {
   gstPercent      Decimal? @db.Decimal(5, 2)
   isActive        Boolean  @default(true)
   eligibility     String?
-  createdById     String?
-  updatedById     String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  memberships Membership[]
 
   @@index([isActive])
 }
@@ -162,4 +165,104 @@ model SeqCounter {
   last Int @default(0)
 
   @@id([name, year])
+}
+
+model Membership {
+  id              String    @id @default(uuid())
+  memberId        String
+  member          Member    @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  packageId       String
+  package         Package   @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  startDate       DateTime  @db.Date
+  endDate         DateTime  @db.Date
+  status          String    @default("active")
+  price           Decimal   @db.Decimal(12, 2)
+  registrationFee Decimal   @default(0) @db.Decimal(12, 2)
+  discountPct      Decimal   @default(0) @db.Decimal(5, 2)
+  discountAmount  Decimal   @default(0) @db.Decimal(12, 2)
+  gstPercent      Decimal   @default(0) @db.Decimal(5, 2)
+  gstAmount       Decimal   @default(0) @db.Decimal(12, 2)
+  total           Decimal   @db.Decimal(12, 2)
+  notes           String?
+  renewedFromId   String?
+  renewedFrom     Membership?  @relation("RenewalChain", fields: [renewedFromId], references: [id], onDelete: SetNull)
+  renewedBy       Membership[] @relation("RenewalChain")
+  idempotencyKey  String?   @unique
+  suspendedAt     DateTime?
+  suspensionDays  Int       @default(0)
+  cancelledAt     DateTime?
+  cancelReason    String?
+  createdById     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  invoice         Invoice?
+  renewals        RenewalEvent[] @relation("RenewedMembership")
+  previousRenewals RenewalEvent[] @relation("PreviousMembership")
+  statusHistory   MembershipStatusHistory[]
+
+  @@index([memberId])
+  @@index([packageId])
+  @@index([status])
+  @@index([endDate])
+}
+
+model RenewalEvent {
+  id           String     @id @default(uuid())
+  membershipId String
+  membership   Membership @relation("RenewedMembership", fields: [membershipId], references: [id], onDelete: Cascade)
+  previousId   String
+  previous     Membership @relation("PreviousMembership", fields: [previousId], references: [id], onDelete: Restrict)
+  actorId      String?
+  note         String?
+  createdAt    DateTime   @default(now())
+
+  @@index([membershipId])
+}
+
+model MembershipStatusHistory {
+  id           String     @id @default(uuid())
+  membershipId String
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  from         String
+  to           String
+  actorId      String?
+  reason       String?
+  createdAt    DateTime   @default(now())
+
+  @@index([membershipId])
+}
+
+model Invoice {
+  id           String        @id @default(uuid())
+  invoiceNo    String        @unique
+  memberId     String
+  member       Member        @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  membershipId String        @unique
+  membership   Membership    @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  subtotal     Decimal       @db.Decimal(12, 2)
+  discount     Decimal       @default(0) @db.Decimal(12, 2)
+  taxable      Decimal       @db.Decimal(12, 2)
+  gst          Decimal       @default(0) @db.Decimal(12, 2)
+  total        Decimal       @db.Decimal(12, 2)
+  status       String        @default("unpaid")
+  issuedAt     DateTime      @default(now())
+  createdById  String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  items        InvoiceItem[]
+
+  @@index([memberId])
+  @@index([status])
+}
+
+model InvoiceItem {
+  id        String  @id @default(uuid())
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  label     String
+  qty       Int     @default(1)
+  unitPrice Decimal @db.Decimal(12, 2)
+  amount    Decimal @db.Decimal(12, 2)
+
+  @@index([invoiceId])
 }

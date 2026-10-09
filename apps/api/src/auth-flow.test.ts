@@ -5,6 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { addDays } from "@o2app/shared";
 
 const RUN = process.env.RUN_AUTH_FLOW === "1";
 const PORT = Number(process.env.AUTH_FLOW_PORT ?? 4111);
@@ -322,6 +323,156 @@ test("phase3: members + packages lifecycle + RBAC", { skip: !RUN }, async () => 
     await prisma.memberNote.deleteMany({ where: { memberId: { in: createdMemberIds } } });
     await prisma.member.deleteMany({ where: { id: { in: createdMemberIds } } });
     await prisma.package.deleteMany({ where: { id: { in: createdPackageIds } } });
+    await app.close();
+    await prisma.$disconnect();
+  }
+});
+
+test("phase4: membership lifecycle + atomic invoices", { skip: !RUN }, async () => {
+  const FLOW_PORT = PORT + 2;
+  const { app, prisma } = await bootApp(FLOW_PORT);
+  const base = `http://localhost:${FLOW_PORT}/api/v1`;
+  const call = (method: string, path: string, jar: Jar, body?: unknown, csrf = true) =>
+    reqBase(base + path, method, jar, body, csrf);
+  const memberIds: string[] = [];
+  const packageIds: string[] = [];
+  const membershipIds: string[] = [];
+
+  try {
+    const ownerEmail = process.env.OWNER_EMAIL ?? "";
+    const ownerPass = process.env.OWNER_PASSWORD ?? "";
+    let r = await call("POST", "/auth/login", {}, { email: ownerEmail, password: ownerPass });
+    assert.equal(r.status, 200);
+    const owner: Jar = r.jar;
+
+    r = await call("GET", "/genders", owner);
+    const male = (r.json as { id: string; name: string }[]).find((g) => g.name === "Male")!;
+    r = await call("POST", "/members", owner, {
+      fullName: "Phase Four",
+      mobile: "90004 11223",
+      genderId: male.id,
+    });
+    assert.equal(r.status, 201);
+    const memberId = r.json.id as string;
+    memberIds.push(memberId);
+
+    r = await call("POST", "/packages", owner, {
+      name: "Flow Monthly",
+      durationValue: 1,
+      durationUnit: "MONTH",
+      price: 1000,
+      registrationFee: 100,
+      discountMaxPct: 10,
+      gstPercent: 18,
+    });
+    assert.equal(r.status, 201);
+    const packageId = r.json.id as string;
+    packageIds.push(packageId);
+
+    // Sale with discount + idempotency.
+    const saleBody = { memberId, packageId, discountPct: 10, idempotencyKey: "phase4-sale-1" };
+    r = await call("POST", "/memberships", owner, saleBody);
+    assert.equal(r.status, 201);
+    const m1 = r.json;
+    membershipIds.push(m1.id as string);
+    assert.equal(Number(m1.total), 1168.2); // (1000+100-110) + 18%
+    assert.match(m1.invoice.invoiceNo as string, /^INV-\d{4}-\d{4}$/);
+    assert.equal(m1.invoice.items.length, 2);
+    assert.equal(m1.invoice.status, "unpaid");
+    r = await call("POST", "/memberships", owner, saleBody);
+    assert.equal(r.status, 201);
+    assert.equal(r.json.id, m1.id);
+    assert.equal(r.json.idempotentReplay, true);
+
+    // Discount above package max rejected.
+    r = await call("POST", "/memberships", owner, { memberId, packageId, discountPct: 50 });
+    assert.equal(r.status, 400);
+
+    // Inactive package blocked for new sales.
+    r = await call("POST", `/packages/${packageId}/deactivate`, owner);
+    assert.equal(r.status, 201);
+    r = await call("POST", "/memberships", owner, { memberId, packageId });
+    assert.equal(r.status, 409);
+
+    // Early renewal continues the day after previous end (same inactive package grandfathered).
+    const prevEnd: string = m1.endDate.slice(0, 10);
+    r = await call("POST", `/memberships/${m1.id}/renew`, owner, {
+      idempotencyKey: "phase4-renew-1",
+    });
+    assert.equal(r.status, 201);
+    const m2 = r.json;
+    membershipIds.push(m2.id as string);
+    assert.ok((m2.startDate as string).startsWith(addDays(prevEnd, 1)));
+    assert.equal(m2.invoice.items.length, 2);
+
+    // Renewal with a different inactive package is blocked.
+    r = await call("POST", "/packages", owner, {
+      name: "Dead Pack",
+      durationValue: 1,
+      durationUnit: "MONTH",
+      price: 500,
+    });
+    const deadId = r.json.id as string;
+    packageIds.push(deadId);
+    await call("POST", `/packages/${deadId}/deactivate`, owner);
+    r = await call("POST", `/memberships/${m2.id}/renew`, owner, { packageId: deadId });
+    assert.equal(r.status, 409);
+
+    // Suspend -> resume keeps validity transitions; extend shifts the end date.
+    r = await call("POST", `/memberships/${m2.id}/suspend`, owner, { reason: "travel" });
+    assert.equal(r.status, 201);
+    assert.equal(r.json.status, "suspended");
+    r = await call("GET", `/memberships/by-member/${memberId}/current`, owner);
+    assert.equal(r.json.validity, "suspended");
+    const endBefore: string = (r.json.membership.endDate as string).slice(0, 10);
+    r = await call("POST", `/memberships/${m2.id}/resume`, owner);
+    assert.equal(r.status, 201);
+    assert.equal(r.json.status, "active");
+    r = await call("PATCH", `/memberships/${m2.id}/extend`, owner, {
+      days: 30,
+      reason: "goodwill",
+    });
+    assert.equal(r.status, 200);
+    assert.equal((r.json.endDate as string).slice(0, 10), addDays(endBefore, 30));
+
+    // Cancel is terminal.
+    r = await call("POST", `/memberships/${m2.id}/cancel`, owner, { reason: "moved away" });
+    assert.equal(r.status, 201);
+    assert.equal(r.json.status, "cancelled");
+    assert.equal((await call("POST", `/memberships/${m2.id}/renew`, owner, {})).status, 409);
+    assert.equal(
+      (await call("PATCH", `/memberships/${m2.id}/extend`, owner, { days: 5 })).status,
+      409,
+    );
+
+    // List filters + detail carry computed validity.
+    r = await call("GET", "/memberships?validity=active", owner);
+    assert.equal(r.status, 200);
+    assert.ok((r.json.data as unknown[]).some((m: any) => m.id === m1.id));
+    r = await call("GET", `/memberships?q=Phase%20Four`, owner);
+    assert.ok((r.json.meta as { total: number }).total >= 1);
+    r = await call("GET", `/memberships/${m1.id}`, owner);
+    assert.equal(r.status, 200);
+    assert.ok(r.json.validity);
+    assert.ok(r.json.statusHistory.length >= 1);
+
+    // Archived members cannot buy.
+    r = await call("POST", `/members/${memberId}/archive`, owner);
+    assert.equal(r.status, 201);
+    assert.equal(
+      (await call("POST", "/memberships", owner, { memberId, packageId: deadId })).status,
+      409,
+    );
+  } finally {
+    await prisma.renewalEvent.deleteMany({ where: { membershipId: { in: membershipIds } } });
+    await prisma.membershipStatusHistory.deleteMany({
+      where: { membershipId: { in: membershipIds } },
+    });
+    await prisma.invoice.deleteMany({ where: { membership: { id: { in: membershipIds } } } });
+    await prisma.membership.deleteMany({ where: { id: { in: membershipIds } } });
+    await prisma.package.deleteMany({ where: { id: { in: packageIds } } });
+    await prisma.memberNote.deleteMany({ where: { memberId: { in: memberIds } } });
+    await prisma.member.deleteMany({ where: { id: { in: memberIds } } });
     await app.close();
     await prisma.$disconnect();
   }

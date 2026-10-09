@@ -1,12 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  addDays,
   cleanMemberInput,
+  diffDays,
+  formatInvoiceNo,
   formatMemberCode,
   memberSchema,
+  membershipValidity,
   normalizeMobile,
   packageDurationDays,
   packageSchema,
+  renewalStartDate,
+  toDateStrInTimezone,
 } from "./members.js";
 
 test("mobile normalization", () => {
@@ -65,4 +71,37 @@ test("package schema + clean helper", () => {
     a: undefined,
     b: "x",
   });
+});
+
+test("invoice numbering + date helpers", () => {
+  assert.equal(formatInvoiceNo(2026, 7), "INV-2026-0007");
+  assert.equal(addDays("2026-01-30", 1), "2026-01-31");
+  assert.equal(addDays("2026-01-01", 90), "2026-04-01");
+  assert.equal(diffDays("2026-01-01", "2026-01-31"), 30);
+});
+
+test("renewal start never overlaps", () => {
+  assert.equal(renewalStartDate("2026-01-30", "2026-01-15"), "2026-01-31"); // early
+  assert.equal(renewalStartDate("2026-01-30", "2026-01-30"), "2026-01-31"); // on-time
+  assert.equal(renewalStartDate("2026-01-30", "2026-02-10"), "2026-02-10"); // late
+});
+
+test("single validity definition", () => {
+  assert.equal(membershipValidity("2026-01-01", "2026-01-30", "2026-01-15", "active"), "active");
+  assert.equal(membershipValidity("2026-02-01", "2026-02-28", "2026-01-15", "active"), "scheduled");
+  assert.equal(membershipValidity("2026-01-01", "2026-01-30", "2026-02-01", "active"), "expired");
+  assert.equal(
+    membershipValidity("2026-01-01", "2026-12-31", "2026-01-15", "suspended"),
+    "suspended",
+  );
+  assert.equal(
+    membershipValidity("2026-01-01", "2026-12-31", "2026-01-15", "cancelled"),
+    "cancelled",
+  );
+});
+
+test("gym-timezone dates", () => {
+  // 2026-01-01T18:30Z is 2026-01-02 00:00 in Kolkata — UTC date alone would be wrong.
+  assert.equal(toDateStrInTimezone(new Date("2026-01-01T18:30:00Z"), "Asia/Kolkata"), "2026-01-02");
+  assert.equal(toDateStrInTimezone(new Date("2026-01-01T18:00:00Z"), "Asia/Kolkata"), "2026-01-01");
 });
