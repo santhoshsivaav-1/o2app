@@ -222,8 +222,8 @@ export class ReportsService {
       orderBy: { issuedAt: "asc" }
     });
 
-    return invoices.map(inv => {
-      const paid = inv.allocations.reduce((sum, a) => sum + Number(a.amount), 0);
+    return invoices.map((inv: any) => {
+      const paid = inv.allocations.reduce((sum: number, a: any) => sum + Number(a.amount), 0);
       const due = Number(inv.total) - paid;
       return {
         ...inv,
@@ -252,7 +252,7 @@ export class ReportsService {
       where: { date: { gte: sevenDaysAgo } },
       select: { memberId: true }
     });
-    const activeMemberIdsWithCheckIns = new Set(recentCheckIns.map(r => r.memberId));
+    const activeMemberIdsWithCheckIns = new Set(recentCheckIns.map((r: any) => r.memberId));
 
     const allActiveMemberships = await this.prisma.membership.findMany({
       where: { status: "active" },
@@ -260,11 +260,11 @@ export class ReportsService {
     });
 
     const absentees = allActiveMemberships
-      .filter(m => !activeMemberIdsWithCheckIns.has(m.memberId))
-      .map(m => m.member);
+      .filter((m: any) => !activeMemberIdsWithCheckIns.has(m.memberId))
+      .map((m: any) => m.member);
       
     // Deduplicate absentees (since one member could have multiple active memberships somehow)
-    const uniqueAbsentees = Array.from(new Map(absentees.map(a => [a.id, a])).values());
+    const uniqueAbsentees = Array.from(new Map(absentees.map((a: any) => [a.id, a])).values());
 
     return {
       checkIns,
