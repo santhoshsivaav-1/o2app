@@ -1,5 +1,0 @@
-
-> @o2app/web@0.1.0 lint /Users/santhoshsivaa/projects/o2app/apps/web
-> echo 'web lint ok (eslint added Phase 2)'
-
-web lint ok (eslint added Phase 2)
