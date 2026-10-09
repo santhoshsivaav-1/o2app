@@ -34,6 +34,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/users", label: "Staff", perm: "staff.manage" },
       { href: "/roles", label: "Roles & Permissions", perm: "roles.manage" },
+      { href: "/settings", label: "Settings", perm: "settings.manage" },
       { href: "/profile", label: "Profile" },
     ],
   },

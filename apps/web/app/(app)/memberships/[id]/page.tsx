@@ -61,6 +61,7 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
   const [renewOpen, setRenewOpen] = useState(false);
   const [renewPkg, setRenewPkg] = useState("");
   const [renewStart, setRenewStart] = useState("");
+  const [renewDiscount, setRenewDiscount] = useState(0);
   const [extendDays, setExtendDays] = useState(30);
   const [cancelReason, setCancelReason] = useState("");
 
@@ -92,6 +93,7 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
         body: JSON.stringify({
           packageId: renewPkg || undefined,
           startDate: renewStart || undefined,
+          discountPct: renewDiscount,
           idempotencyKey: crypto.randomUUID(),
         }),
       }),
@@ -253,8 +255,8 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
           </div>
 
           {renewOpen && (
-            <div className="grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-4 sm:grid-cols-3">
-              <div>
+            <div className="grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-4 sm:grid-cols-4">
+              <div className="sm:col-span-2">
                 <label className="label">Package</label>
                 <select
                   className="input"
@@ -282,7 +284,19 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
                   onChange={(e) => setRenewStart(e.target.value)}
                 />
               </div>
-              <div className="flex items-end">
+              <div>
+                <label className="label">Discount %</label>
+                <input
+                  className="input"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.5"
+                  value={renewDiscount}
+                  onChange={(e) => setRenewDiscount(Number(e.target.value))}
+                />
+              </div>
+              <div className="flex items-end sm:col-span-4">
                 <button
                   className="btn-primary text-sm"
                   onClick={() => renew.mutate()}

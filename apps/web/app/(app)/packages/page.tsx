@@ -107,6 +107,20 @@ export default function PackagesPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["packages"] }),
   });
 
+  const reactivate = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/packages/${id}`, { method: "PATCH", body: JSON.stringify({ isActive: true }) }),
+    onSuccess: () => {
+      setMsgOk(true);
+      setMsg("Package reactivated.");
+      queryClient.invalidateQueries({ queryKey: ["packages"] });
+    },
+    onError: (e) => {
+      setMsgOk(false);
+      setMsg(e instanceof ApiError ? e.message : "Reactivate failed");
+    },
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -142,12 +156,19 @@ export default function PackagesPage() {
                   <button className="btn-ghost px-2.5 py-1 text-xs" onClick={() => startEdit(p)}>
                     Edit
                   </button>
-                  {p.isActive && (
+                  {p.isActive ? (
                     <button
                       className="btn-danger px-2.5 py-1 text-xs"
                       onClick={() => deactivate.mutate(p.id)}
                     >
                       Deactivate
+                    </button>
+                  ) : (
+                    <button
+                      className="btn-ghost px-2.5 py-1 text-xs"
+                      onClick={() => reactivate.mutate(p.id)}
+                    >
+                      Reactivate
                     </button>
                   )}
                 </span>

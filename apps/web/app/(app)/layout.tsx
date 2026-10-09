@@ -44,6 +44,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     ...g,
     items: g.items.filter((n) => !n.perm || has(n.perm)),
   })).filter((g) => g.items.length > 0);
+  const visibleCount = groups.reduce((n, g) => n + g.items.length, 0);
 
   const sidebar = (
     <div className="flex h-full flex-col bg-white">
@@ -51,6 +52,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <Logo />
       </div>
       <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4" aria-label="Main">
+        {visibleCount <= 2 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-800">
+            Your account has almost no permissions, so most sections are hidden. Ask the gym owner
+            to assign you a role (Staff → Edit).
+          </div>
+        )}
         {groups.map((g) => (
           <div key={g.title}>
             <p className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-stone-400">

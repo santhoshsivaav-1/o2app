@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength } from "class-validator";
+import { ArrayMinSize, IsBoolean, IsEmail, IsOptional, IsString, MinLength } from "class-validator";
 
 export class LoginDto {
   @IsEmail()
@@ -38,16 +38,22 @@ export class CreateUserDto {
   password!: string;
 
   @IsString({ each: true })
+  @ArrayMinSize(1, { message: "Assign at least one role" })
   roleIds!: string[];
 }
 
 export class UpdateUserDto {
+  @IsOptional()
   @IsString()
   name?: string;
 
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
 
+  @IsOptional()
   @IsString({ each: true })
+  @ArrayMinSize(1, { message: "A user must keep at least one role" })
   roleIds?: string[];
 }
 
