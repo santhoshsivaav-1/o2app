@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: o2app-api
+    runtime: node
+    rootDir: apps/api
+    buildCommand: pnpm install && pnpm build && pnpm db:deploy
+    startCommand: node dist/main.js
+    healthCheckPath: /api/v1/health/ready
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: CSRF_SECRET
+        sync: false
+      - key: JOBS_SECRET
+        sync: false
+      - key: DEVICE_API_KEYS
+        sync: false
+      - key: WEB_ORIGIN
+        value: https://o2app-web.onrender.com
+      - key: GYM_TIMEZONE
+        value: Asia/Kolkata
+      - key: GST_DEFAULT_PCT
+        value: "18"
+  - type: web
+    name: o2app-web
+    runtime: node
+    rootDir: apps/web
+    buildCommand: pnpm install && pnpm build
+    startCommand: node .next/standalone/apps/web/server.js
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        value: https://o2app-api.onrender.com/api/v1

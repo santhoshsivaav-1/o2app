@@ -1,0 +1,71 @@
+{
+  "files": {
+    "packages/shared/dist/index.d.ts.map": {
+      "size": 918,
+      "mtime_nanos": 1791524119979732802,
+      "mode": 420,
+      "is_dir": false
+    },
+    "packages/shared/dist/index.test.js": {
+      "size": 1147,
+      "mtime_nanos": 1791524119981506239,
+      "mode": 420,
+      "is_dir": false
+    },
+    "packages/shared/dist/index.js.map": {
+      "size": 2262,
+      "mtime_nanos": 1791524119974063762,
+      "mode": 420,
+      "is_dir": false
+    },
+    "packages/shared/dist": { "size": 0, "mtime_nanos": 0, "mode": 0, "is_dir": true },
+    "packages/shared/dist/index.d.ts": {
+      "size": 1229,
+      "mtime_nanos": 1791524119980145701,
+      "mode": 420,
+      "is_dir": false
+    },
+    "packages/shared/dist/index.js": {
+      "size": 2248,
+      "mtime_nanos": 1791524119974251315,
+      "mode": 420,
+      "is_dir": false
+    },
+    "packages/shared/dist/index.test.d.ts.map": {
+      "size": 114,
+      "mtime_nanos": 1791524119982106816,
+      "mode": 420,
+      "is_dir": false
+    },
+    "packages/shared/dist/index.test.js.map": {
+      "size": 1516,
+      "mtime_nanos": 1791524119981329395,
+      "mode": 420,
+      "is_dir": false
+    },
+    "packages/shared/.turbo/turbo-build.log": {
+      "size": 105,
+      "mtime_nanos": 1791524120001993395,
+      "mode": 420,
+      "is_dir": false
+    },
+    "packages/shared/dist/index.test.d.ts": {
+      "size": 51,
+      "mtime_nanos": 1791524119982256033,
+      "mode": 420,
+      "is_dir": false
+    }
+  },
+  "order": [
+    "packages/shared/.turbo/turbo-build.log",
+    "packages/shared/dist",
+    "packages/shared/dist/index.d.ts",
+    "packages/shared/dist/index.d.ts.map",
+    "packages/shared/dist/index.js",
+    "packages/shared/dist/index.js.map",
+    "packages/shared/dist/index.test.d.ts",
+    "packages/shared/dist/index.test.d.ts.map",
+    "packages/shared/dist/index.test.js",
+    "packages/shared/dist/index.test.js.map"
+  ]
+}

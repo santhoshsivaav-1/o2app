@@ -46,10 +46,10 @@ o2app/
 
 ## Environments
 
-| Env | Web | API | DB |
-|-----|-----|-----|----|
-| local | `pnpm --filter web dev` (:3000) | `pnpm --filter api start:dev` (:4000) | Docker Postgres (:5432) |
-| staging/prod | `o2app-web.onrender.com` | `o2app-api.onrender.com` | Neon (pooled app, direct migrate) |
+| Env          | Web                             | API                                   | DB                                |
+| ------------ | ------------------------------- | ------------------------------------- | --------------------------------- |
+| local        | `pnpm --filter web dev` (:3000) | `pnpm --filter api start:dev` (:4000) | Docker Postgres (:5432)           |
+| staging/prod | `o2app-web.onrender.com`        | `o2app-api.onrender.com`              | Neon (pooled app, direct migrate) |
 
 ## Risks carried into Phase 1
 

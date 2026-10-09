@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": ".next",
+    "rootDir": ".",
+    "moduleResolution": "bundler",
+    "jsx": "preserve",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "noEmit": true,
+    "incremental": true,
+    "allowJs": true,
+    "isolatedModules": true
+  },
+  "include": ["next-env.d.ts", "app", "next.config.mjs", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}

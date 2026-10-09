@@ -11,7 +11,7 @@ services:
     envVars: [DATABASE_URL, DIRECT_URL, JWT_*, SESSION_SECRET, CSRF_SECRET, JOBS_SECRET, DEVICE_API_KEYS, WEB_ORIGIN, GYM_TIMEZONE, GST_DEFAULT_PCT]
   - type: web, name: o2app-web, runtime: node, rootDir: apps/web
     buildCommand: pnpm install && pnpm build
-    startCommand: node server.js  # next standalone
+    startCommand: node .next/standalone/apps/web/server.js  # verified Phase 1: standalone emits server.js under .next/standalone/apps/web/
     healthCheckPath: /healthz
     envVars: [NEXT_PUBLIC_API_URL=https://o2app-api.onrender.com/api/v1]
 ```

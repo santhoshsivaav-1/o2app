@@ -1,0 +1,4 @@
+
+> @o2app/api@0.1.0 build /Users/santhoshsivaa/projects/o2app/apps/api
+> tsc -p tsconfig.json
+

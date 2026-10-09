@@ -1,0 +1,28 @@
+{
+  "name": "o2app-gym-management",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:migrate": "pnpm --filter @o2app/api exec prisma migrate dev --schema ../../prisma/schema.prisma",
+    "db:deploy": "pnpm --filter @o2app/api exec prisma migrate deploy --schema ../../prisma/schema.prisma",
+    "db:generate": "pnpm --filter @o2app/api exec prisma generate --schema ../../prisma/schema.prisma",
+    "db:studio": "prisma studio"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "prisma": "5.22.0",
+    "turbo": "^2.4.0",
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "@prisma/client": "5.22.0"
+  }
+}

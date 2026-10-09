@@ -1,0 +1,15 @@
+name: Scheduler (reminder jobs)
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl --fail --max-time 60 -X POST "$API_URL/internal/jobs/run" \
+            -H "Authorization: Bearer $JOBS_SECRET" || echo "scheduler trigger failed (Render may be asleep); next run will catch overdue jobs"
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          JOBS_SECRET: ${{ secrets.JOBS_SECRET }}

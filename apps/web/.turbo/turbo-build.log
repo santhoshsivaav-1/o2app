@@ -1,0 +1,30 @@
+
+> @o2app/web@0.1.0 build /Users/santhoshsivaa/projects/o2app/apps/web
+> next build
+
+  ▲ Next.js 14.2.35
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/5) ...
+   Generating static pages (1/5) 
+   Generating static pages (2/5) 
+   Generating static pages (3/5) 
+ ✓ Generating static pages (5/5)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+┌ ○ /                                    142 B          87.3 kB
+├ ○ /_not-found                          872 B          88.1 kB
+└ ○ /healthz                             0 B                0 B
++ First Load JS shared by all            87.2 kB
+  ├ chunks/5b8f0dd8-0b7e1dd47e2a464c.js  53.6 kB
+  ├ chunks/749-39e755d29f953c93.js       31.7 kB
+  └ other shared chunks (total)          1.84 kB
+
+
+○  (Static)  prerendered as static content
+

@@ -1,0 +1,5 @@
+
+> @o2app/api@0.1.0 lint /Users/santhoshsivaa/projects/o2app/apps/api
+> echo 'api lint ok (eslint added Phase 2)'
+
+api lint ok (eslint added Phase 2)

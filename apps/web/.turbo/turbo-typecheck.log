@@ -1,0 +1,4 @@
+
+> @o2app/web@0.1.0 typecheck /Users/santhoshsivaa/projects/o2app/apps/web
+> tsc --noEmit
+

@@ -1,0 +1,25 @@
+
+> @o2app/shared@0.1.0 pretest /Users/santhoshsivaa/projects/o2app/packages/shared
+> npm run build
+
+
+> @o2app/shared@0.1.0 build
+> tsc -p tsconfig.json
+
+
+> @o2app/shared@0.1.0 test /Users/santhoshsivaa/projects/o2app/packages/shared
+> node --test dist/**/*.test.js
+
+✔ GST exclusive default 18% (0.6325ms)
+✔ GST inclusive (0.081791ms)
+✔ invalid discount rejected (0.102542ms)
+✔ inclusive end-date (1.532ms)
+✔ dedupe key + status (0.201375ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 44.120958

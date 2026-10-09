@@ -1,15 +1,16 @@
+# Shared
 node_modules/
 .next/
 dist/
 build/
 out/
 *.tsbuildinfo
-.env
-.env.*
-!.env.example
 coverage/
 playwright-report/
 test-results/
 backups/*.dump
 .DS_Store
 turbo/
+.env
+.env.*
+!.env.example

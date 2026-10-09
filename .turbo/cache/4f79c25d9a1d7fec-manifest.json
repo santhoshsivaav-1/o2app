@@ -1,0 +1,155 @@
+{
+  "files": {
+    "apps/api/dist/app.module.d.ts.map": {
+      "size": 134,
+      "mtime_nanos": 1791524120259710955,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist/prisma.service.d.ts": {
+      "size": 329,
+      "mtime_nanos": 1791524120250651134,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist/app.module.js": {
+      "size": 1167,
+      "mtime_nanos": 1791524120259007372,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/.turbo/turbo-build.log": {
+      "size": 95,
+      "mtime_nanos": 1791524120277677255,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist/health.test.js.map": {
+      "size": 341,
+      "mtime_nanos": 1791524120260422497,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist/prisma.service.d.ts.map": {
+      "size": 290,
+      "mtime_nanos": 1791524120250505084,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist/main.d.ts.map": {
+      "size": 123,
+      "mtime_nanos": 1791524120262456699,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist/prisma.service.js.map": {
+      "size": 537,
+      "mtime_nanos": 1791524120246322756,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist/app.module.d.ts": {
+      "size": 75,
+      "mtime_nanos": 1791524120259798585,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist/health.test.js": {
+      "size": 516,
+      "mtime_nanos": 1791524120260510418,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist/health.controller.d.ts.map": {
+      "size": 277,
+      "mtime_nanos": 1791524120257423405,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist/health.controller.d.ts": {
+      "size": 473,
+      "mtime_nanos": 1791524120257525952,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist/health.controller.js.map": {
+      "size": 918,
+      "mtime_nanos": 1791524120254338099,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist/main.js.map": {
+      "size": 980,
+      "mtime_nanos": 1791524120262140347,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist/app.module.js.map": {
+      "size": 332,
+      "mtime_nanos": 1791524120258646476,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist/health.controller.js": {
+      "size": 2228,
+      "mtime_nanos": 1791524120254497525,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist/health.test.d.ts": {
+      "size": 52,
+      "mtime_nanos": 1791524120260814936,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist/health.test.d.ts.map": {
+      "size": 116,
+      "mtime_nanos": 1791524120260752807,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist/main.d.ts": {
+      "size": 61,
+      "mtime_nanos": 1791524120262518536,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist/main.js": {
+      "size": 1072,
+      "mtime_nanos": 1791524120262219393,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist/prisma.service.js": {
+      "size": 1269,
+      "mtime_nanos": 1791524120246445138,
+      "mode": 420,
+      "is_dir": false
+    },
+    "apps/api/dist": { "size": 0, "mtime_nanos": 0, "mode": 0, "is_dir": true }
+  },
+  "order": [
+    "apps/api/.turbo/turbo-build.log",
+    "apps/api/dist",
+    "apps/api/dist/app.module.d.ts",
+    "apps/api/dist/app.module.d.ts.map",
+    "apps/api/dist/app.module.js",
+    "apps/api/dist/app.module.js.map",
+    "apps/api/dist/health.controller.d.ts",
+    "apps/api/dist/health.controller.d.ts.map",
+    "apps/api/dist/health.controller.js",
+    "apps/api/dist/health.controller.js.map",
+    "apps/api/dist/health.test.d.ts",
+    "apps/api/dist/health.test.d.ts.map",
+    "apps/api/dist/health.test.js",
+    "apps/api/dist/health.test.js.map",
+    "apps/api/dist/main.d.ts",
+    "apps/api/dist/main.d.ts.map",
+    "apps/api/dist/main.js",
+    "apps/api/dist/main.js.map",
+    "apps/api/dist/prisma.service.d.ts",
+    "apps/api/dist/prisma.service.d.ts.map",
+    "apps/api/dist/prisma.service.js",
+    "apps/api/dist/prisma.service.js.map"
+  ]
+}
