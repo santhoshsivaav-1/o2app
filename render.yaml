@@ -37,7 +37,7 @@ services:
     runtime: node
     rootDir: apps/web
     buildCommand: pnpm install --prod=false && pnpm --filter @o2app/shared build && pnpm build
-    startCommand: node .next/standalone/apps/web/server.js
+    startCommand: pnpm start
     healthCheckPath: /healthz
     autoDeploy: true
     envVars:
