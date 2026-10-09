@@ -1412,3 +1412,242 @@ Do not rewrite the entire repository or generate all modules immediately.
 Once the audit is complete, implement Phase 1 in small, testable steps. Continue through the remaining phases in order, verifying each phase before proceeding.
 
 **Primary objective:** Deliver a reliable, maintainable Gym Management System that starts with minimal infrastructure cost, protects the gym's operational data, and can scale to more reliable hosting without a fundamental rewrite.`
+
+---
+
+## 26. Complete Gym Operations & Business Intelligence System
+
+For your Gym Management Software, I recommend designing the reporting, reminders, and dashboard modules as a complete Gym Operations & Business Intelligence System. It should help the owner understand business performance, help reception staff know what to do next, and help the accountant track every rupee.
+
+### 1. Dashboard — everything that should be visible
+The dashboard should change according to the logged-in user's role. The owner sees business performance, the receptionist sees today's work, the accountant sees financial performance, and the trainer sees permitted attendance and member information.
+
+**Owner dashboard**
+*   **Business overview**
+    *   Total members: Lifetime registered members
+    *   Active members: Valid memberships today
+    *   Expired memberships: Awaiting renewal or review
+    *   Expiring in 7 days: Renewal opportunities
+*   **Financial overview**
+    *   Today's collections
+    *   This month's collections
+    *   Outstanding balance
+    *   Refunds this month
+*   **Attendance and acquisition**
+    *   Today's check-ins
+    *   New registrations
+    *   New enquiries
+    *   Follow-ups due
+
+**Recommended dashboard sections**
+*   **Business KPIs**: Total members, active, expired, new registrations, renewals, membership cancellations
+*   **Financial KPIs**: Collections today/month, outstanding balances, refunds, discounts, payment failures if applicable
+*   **Membership health**: Expiring today, in 3 days, 7 days, and 30 days; expired and suspended members
+*   **Attendance**: Today's check-ins, hourly attendance, attendance trend, device sync status
+*   **Enquiries**: New leads, follow-ups due, overdue leads, converted leads, conversion rate
+*   **Package performance**: Sales by package, renewals by package, revenue collected by package
+*   **Staff performance**: Registrations, renewals, collections, follow-ups, and corrections by authorized staff
+*   **Alerts**: Device offline, failed synchronization, failed reminders, backup status where available
+*   **Recent activity**: Latest registrations, renewals, payments, refunds, membership changes
+*   **Quick actions**: Register member, create enquiry, collect payment, renew membership, record attendance
+
+**Charts worth including**
+*   **Revenue and collection trend**: Daily or monthly collections over the selected period, with comparisons to the previous equivalent period.
+*   **Member growth**: New members, renewals, expiries, cancellations, and net active-member change over time.
+*   **Attendance by time**: Check-ins by hour and day of the week to identify peak gym hours.
+*   **Package performance**: Package-wise sales, amount collected, renewal count, and outstanding balances.
+*   *The implementation should use real chart components backed by API aggregation endpoints—not screenshots or static illustrations.*
+
+### 2. Complete reports module
+Build a dedicated Reports section with categorized reports, a shared filter bar, saved filters if useful, and authorized export options.
+
+**A. Member reports**
+*   Complete member directory: Member ID, name, phone, registration date, status
+*   New registrations: Registration date, source, package, registering staff
+*   Active members: Valid membership, package, start and end dates
+*   Expired members: Expiry date, last package, last renewal, contact status
+*   Inactive members: Members with no check-in for a configurable period
+*   Gender-category report: Member count and active-member count by configured category
+*   Age-group report: Age bands, if date of birth is collected and use is authorized
+*   Registration source: Walk-in, referral, social media, advertisement, and other sources
+*   Member status history: Previous status, new status, reason, changed by, timestamp
+*   Duplicate review report: Possible duplicate members for authorized staff to resolve
+*   Archived members: Archived date, reason, and permitted historical information
+*(For the inactive-members report, make the period configurable, such as 7, 14, or 30 days. Exclude members who are not currently expected to attend, according to your business rules.)*
+
+**B. Membership and renewal reports**
+*   Current memberships: Member, package, start date, end date, status
+*   Upcoming expiries: Memberships ending within a selected window
+*   Expired memberships: Expiry date, contact status, renewal outcome
+*   Renewals: Previous membership, new membership, renewal date, staff
+*   Renewal conversion: Eligible expired/expiring members who renewed within a defined window
+*   Membership duration: Membership length by package
+*   Package distribution: Members enrolled in each package
+*   Package sales: Memberships sold and invoiced amount by package
+*   Membership suspensions: Start/end dates, reason, approving staff
+*   Membership cancellations: Cancellation date, reason, refund if applicable
+*   Future-start memberships: Memberships purchased but not yet started
+*   Membership history: All historical memberships for one member
+*   Discounted memberships: Discount amount, reason, authorizing staff
+*   Membership adjustments: Extensions or date corrections and their audit trail
+*(Important: Do not calculate renewal conversion by dividing renewals by all members. Define the eligible renewal cohort and conversion window, such as members expiring during a selected period who renewed within 30 days.)*
+
+**C. Financial reports**
+*   Daily collection: Payments received by date and payment method
+*   Monthly collection: Daily or monthly collection totals
+*   Payment transaction register: Payment ID, invoice, member, date, amount, method, status
+*   Invoice register: Invoice number, date, total, paid, balance, status
+*   Outstanding balances: Member, invoice, due amount, age of balance
+*   Receivables aging: Outstanding balances grouped by age
+*   Partial payment report: Invoices with multiple payments or remaining balances
+*   Refund report: Refund date, amount, reason, original payment, authorized by
+*   Discount report: Discounts given, reasons, packages, authorizing staff
+*   Package revenue report: Invoiced and collected amounts by package
+*   Payment-method report: Cash, UPI, card, and other configured methods
+*   Cancelled invoice/reversal report: Original transaction, reversal, reason, actor
+*   Cash reconciliation: Recorded cash collections versus recorded cash handover, if tracked
+*   Tax summary: Configured taxable sales, tax amounts, and relevant transaction dates
+*   Staff collection report: Payments recorded by each staff member
+*   Financial activity audit: Corrections, refunds, reversals, and sensitive changes
+
+*(Receivables aging: Provide configurable aging groups such as: Not yet due, 1–7 days overdue, 8–30 days overdue, 31–60 days overdue, More than 60 days overdue. Use a clearly defined due date.)*
+*(Financial definitions: The system must distinguish Collections, Invoiced amount, Outstanding balance, Refunds, Profit, and Revenue explicitly.)*
+
+**D. Attendance reports**
+*   Daily attendance register: Member, check-in time, source, device
+*   Hourly attendance: Check-ins grouped by hour
+*   Weekly attendance: Day-by-day attendance totals
+*   Monthly attendance: Daily attendance totals and trends
+*   Member attendance history: Check-in dates and times for one member
+*   Attendance frequency: Check-in days per member during a selected period
+*   Low-attendance members: Members below a configurable attendance threshold
+*   Never-attended members: Members whose membership has started but have no recorded check-in
+*   Peak-hours report: Busiest time windows and days
+*   First check-in report: Members whose first attendance occurred during the period
+*   Manual attendance report: Manually recorded check-ins and responsible staff
+*   Attendance correction report: Original value, corrected value, reason, actor
+*   Duplicate-event report: Duplicate device events and deduplication outcomes
+*   Unmapped device users: Device identities not mapped to a member
+*   Device synchronization report: Last sync, received events, processed events, failures
+*   Device uptime/health history: Device health events where the connector provides reliable information
+*(Attendance metrics must be defined carefully: Check-ins count accepted attendance events, Unique attendees count distinct members, Visits per member count accepted records, Attendance rate requires defined eligible population.)*
+
+**E. Enquiry and lead reports**
+*   New enquiries: Name, date, source, assigned staff, status
+*   Enquiry pipeline: Count and value, if applicable, by status
+*   Follow-ups due: Due date, prospect, assigned staff, last contact
+*   Overdue follow-ups: Days overdue, latest activity, next action
+*   Conversion report: Enquiries converted to memberships
+*   Conversion by source: Leads and conversions from each lead source
+*   Conversion by staff: Leads handled, qualified, and converted
+*   Lost enquiries: Loss reason and date
+*   Enquiry response time: Time from enquiry creation to first recorded contact
+*   Trial-to-membership conversion: Trials and resulting memberships, if trials are tracked
+*   Lead aging: Enquiries grouped by age and status
+*   Follow-up activity: Calls, messages, visits, notes, and outcomes if recorded
+
+**F. Staff and audit reports**
+*   Staff activity: Important operations by staff member
+*   Registrations by staff: New member records created
+*   Renewals by staff: Membership renewals processed
+*   Collections by staff: Payments recorded, distinct from payment method
+*   Follow-up performance: Assigned, completed, overdue, converted
+*   Refund approvals: Refund requests, decisions, approver
+*   Permission changes: Role and permission changes
+*   Login activity: Successful and failed login events, with appropriate privacy limits
+*   Manual attendance changes: Staff, member, timestamp, reason
+*   Record corrections: Original value, changed value, actor, reason
+*   Export activity: User, report, time, scope where appropriate
+*   Device administration: Credential changes, mapping changes, sync actions
+
+**G. Operational and system reports**
+*   Failed reminder jobs.
+*   Pending or repeatedly retried jobs.
+*   Failed attendance synchronization.
+*   Last successful device sync.
+*   Unprocessed attendance events.
+*   Database connection or readiness failures.
+*   Notification delivery failures.
+*   Export-generation failures.
+*   Application error summaries, if reliable error monitoring is available.
+*   Backup completion records and last verified restore date.
+*   PWA/API connectivity status.
+
+### 3. Complete reminders and alerts module
+Use a dedicated Reminders & Alerts page with Upcoming, Due Today, Overdue, Sent, Failed, and Dismissed views.
+
+**A. Membership reminders**
+*   Membership expiry (30, 14, 7, 3, 1 days before, on expiry date, 1, 7, 30 days after)
+*   Scheduled membership starting (1 day before)
+*   Membership suspended
+*   Membership cancellation
+
+**B. Payment reminders**
+*   Partial payment balance
+*   Invoice approaching due date
+*   Invoice overdue
+*   Outstanding balance
+*   Long-outstanding balance
+*   Payment recorded
+*   Refund requested, pending approval, completed
+
+**C. Enquiry and follow-up reminders**
+*   New enquiry not assigned or not contacted
+*   Follow-up due today or overdue
+*   Trial session approaching
+*   Interested prospect not contacted
+*   Lead approaching the end of its follow-up window
+*   Enquiry converted successfully or lost
+
+**D. Member engagement reminders**
+*   Active member has not attended for 7, 14, 30 days
+*   New member has not attended after membership activation
+*   Attendance frequency has dropped below configured threshold
+*   Member returning after a long absence
+
+**E. Staff and administrative reminders**
+*   Assigned follow-up due
+*   Unassigned enquiry needs attention
+*   Refund awaiting approval
+*   Manual attendance correction awaiting review
+*   Member record requiring duplicate review
+*   Unmapped fingerprint device user
+*   Device synchronization failure
+*   Scheduled report is ready
+*   Backup is overdue
+*   Security-sensitive settings were changed
+
+### 4. Dashboard alerts and actionable widgets
+*   Memberships expiring soon -> Open the filtered expiry list
+*   Expired members not contacted -> Create or complete a follow-up
+*   Outstanding payments -> Open invoices for authorized users
+*   Follow-ups overdue -> Open the enquiry and record the outcome
+*   New enquiries -> Assign an owner and schedule the first contact
+*   Low-attendance members -> Review recent attendance
+*   Unmapped fingerprint users -> Map device user to a member
+*   Device sync failed -> Inspect the sync log and retry safely
+*   Failed reminders -> Review the failure and retry
+*   Recent refunds -> Open the original payment and audit history
+*   Backup overdue -> Open backup status and runbook
+*   New registrations -> Open the new-member report
+
+### 5. Global filters and export requirements
+All applicable reports should support:
+*   Start and end date, preset periods (today, yesterday, last 7/30 days, etc.)
+*   Member ID and name search
+*   Membership status, Package, Gender category, Payment method, Transaction status, Staff member, Enquiry source and status, Attendance device, Reminder status.
+*   Provide CSV/XLSX export for detailed data, PDF for formatted summaries.
+
+### 6. Technical rules for reports and reminders
+*   Create role-specific dashboard configurations.
+*   Use real API aggregation endpoints.
+*   Apply backend authorization to every dashboard metric.
+*   Do not use fabricated production data.
+*   Implement all required reports defined.
+*   Use PostgreSQL-backed durable jobs for the initial free-tier architecture for the reminder engine.
+*   Implement configurable reminder rules, idempotency keys, and retry policies.
+
+### 7. Implementation priority
+*   **P1 (Essential for launch)**: Active/expired members, expiry reminders, daily collections, outstanding balances, invoice/payment register, daily attendance, new enquiries, overdue follow-ups, and device-sync failure alerts.
+*   **P2 (Operational improvement)**: Renewal conversion, low-attendance members, package performance, staff activity, receivables aging, enquiry-source conversion, monthly trends, and scheduled exports.
+*   **P3 (Advanced analytics)**: Attendance forecasting, advanced cohort retention, customizable report builder, configurable dashboard layouts, advanced attribution, and richer business forecasting.

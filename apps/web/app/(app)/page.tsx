@@ -4,26 +4,13 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
-import { NAV } from "../../lib/nav";
 
-function Stat({
-  label,
-  value,
-  sub,
-  loading,
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  loading?: boolean;
-}) {
+function StatCard({ title, value, subtext, highlight }: { title: string, value: string | number, subtext: string, highlight?: boolean }) {
   return (
-    <div className="card">
-      <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">{label}</p>
-      <p className="mt-1 text-3xl font-bold tracking-tight text-stone-900">
-        {loading ? <span className="text-stone-300">…</span> : value}
-      </p>
-      <p className="mt-1 text-xs text-stone-500">{sub}</p>
+    <div className="card border-l-4 border-l-transparent transition hover:border-l-brand-500">
+      <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">{title}</p>
+      <p className={`mt-2 text-3xl font-bold ${highlight ? 'text-brand-600' : 'text-stone-900'}`}>{value}</p>
+      <p className="mt-1 text-xs text-stone-500">{subtext}</p>
     </div>
   );
 }
@@ -31,81 +18,85 @@ function Stat({
 export default function DashboardPage() {
   const { user, has } = useAuth();
 
-  const health = useQuery({
-    queryKey: ["api-health"],
-    queryFn: () => apiFetch<{ ok: boolean; db: string }>("/health/ready"),
-    retry: false,
-  });
-  const members = useQuery({
-    queryKey: ["members-count"],
-    queryFn: () => apiFetch<{ meta: { total: number } }>("/members?limit=1"),
-    retry: false,
-    enabled: has("members.read"),
-  });
-  const staff = useQuery({
-    queryKey: ["staff-count"],
-    queryFn: () => apiFetch<unknown[]>("/users"),
-    retry: false,
-    enabled: has("staff.manage"),
+  const { data: dashboard, isLoading } = useQuery({
+    queryKey: ["owner-dashboard"],
+    queryFn: () => apiFetch<any>("/reports/dashboard/owner"),
+    enabled: has("reports:read") || has("reports.read"),
   });
 
-  const shortcuts = NAV.filter((n) => n.href !== "/" && (!n.perm || has(n.perm)));
+  if (!has("reports:read") && !has("reports.read")) {
+    return <div className="p-8 text-center text-stone-500">You do not have permission to view the dashboard.</div>;
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h1 className="page-title">Good to see you, {user?.name?.split(" ")[0]}.</h1>
-        <p className="page-sub">
-          Here&apos;s what&apos;s happening at O2 Oxygen Fitness Studio today.
-        </p>
+        <h1 className="page-title">Business Performance</h1>
+        <p className="page-sub">Welcome back, {user?.name?.split(" ")[0]}. Here is your operational overview.</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat
-          label="Members"
-          value={members.data ? String(members.data.meta.total) : "—"}
-          sub="Registered in the system"
-          loading={members.isLoading}
-        />
-        <Stat
-          label="Staff accounts"
-          value={staff.data ? String(staff.data.length) : has("staff.manage") ? "—" : "–"}
-          sub={has("staff.manage") ? "Active and disabled" : "Restricted to managers"}
-          loading={staff.isLoading}
-        />
-        <Stat
-          label="API status"
-          value={health.data ? "Online" : "…"}
-          sub={health.data ? `Database ${health.data.db}` : "Checking connection"}
-          loading={health.isLoading}
-        />
-        <Stat
-          label="Your access"
-          value={String(user?.permissions.length ?? 0)}
-          sub={`${user?.roles.map((r) => r.name).join(", ") ?? ""}`}
-        />
-      </div>
+      {isLoading ? (
+        <p className="text-stone-500">Loading dashboard data...</p>
+      ) : dashboard ? (
+        <>
+          <section>
+            <h2 className="text-lg font-semibold text-stone-800 mb-4 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-500"></span> Business Overview
+            </h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <StatCard title="Total Members" value={dashboard.business.totalMembers} subtext="Lifetime registered members" />
+              <StatCard title="Active Members" value={dashboard.business.activeMembers} subtext="Valid memberships today" highlight />
+              <StatCard title="Expired Memberships" value={dashboard.business.expiredMemberships} subtext="Awaiting renewal or review" />
+              <StatCard title="Expiring in 7 Days" value={dashboard.business.expiringIn7Days} subtext="Renewal opportunities" />
+            </div>
+          </section>
 
-      <div>
-        <h2 className="section-title mb-3">Quick actions</h2>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {shortcuts.map((n) => (
-            <Link
-              key={n.href}
-              href={n.href}
-              className="card group transition hover:border-brand-300 hover:shadow"
-            >
-              <p className="font-semibold text-stone-900 group-hover:text-brand-700">{n.label}</p>
-              <p className="mt-1 text-sm text-stone-500">Open {n.label.toLowerCase()} →</p>
-            </Link>
-          ))}
-        </div>
-      </div>
+          <section>
+            <h2 className="text-lg font-semibold text-stone-800 mb-4 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-green-500"></span> Financial Overview
+            </h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <StatCard title="Today's Collections" value={`₹${dashboard.financial.todayCollections}`} subtext="Payments received today" highlight />
+              <StatCard title="Month's Collections" value={`₹${dashboard.financial.monthCollections}`} subtext="Payments received this month" />
+              <StatCard title="Outstanding Balance" value={`₹${dashboard.financial.outstandingBalance}`} subtext="Unpaid invoice totals" />
+              <StatCard title="Refunds This Month" value={`₹${dashboard.financial.monthRefunds}`} subtext="Processed refunds" />
+            </div>
+          </section>
 
-      <p className="text-xs text-stone-400">
-        Analytics, collections and attendance trends arrive with the dashboard phase — every number
-        above is read live from the database.
-      </p>
+          <section>
+            <h2 className="text-lg font-semibold text-stone-800 mb-4 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-purple-500"></span> Attendance & Acquisition
+            </h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <StatCard title="Today's Check-ins" value={dashboard.attendance.todayCheckIns} subtext="Total attendance today" highlight />
+              <StatCard title="New Registrations" value={dashboard.attendance.newRegistrations} subtext="Members joined today" />
+              <StatCard title="New Enquiries" value={dashboard.attendance.newEnquiries} subtext="Leads captured today" />
+              <StatCard title="Follow-ups Overdue" value={dashboard.attendance.overdueFollowUps} subtext="Requires immediate action" />
+            </div>
+          </section>
+          
+          <section>
+            <h2 className="text-lg font-semibold text-stone-800 mb-4">Actionable Alerts (P1)</h2>
+            <div className="flex gap-4 flex-wrap">
+               {dashboard.business.expiringIn7Days > 0 && (
+                  <Link href="/reports" className="bg-orange-100 text-orange-800 px-4 py-3 rounded-lg text-sm font-medium hover:bg-orange-200 transition">
+                    {dashboard.business.expiringIn7Days} Memberships expiring soon →
+                  </Link>
+               )}
+               {dashboard.attendance.overdueFollowUps > 0 && (
+                  <Link href="/enquiries" className="bg-red-100 text-red-800 px-4 py-3 rounded-lg text-sm font-medium hover:bg-red-200 transition">
+                    {dashboard.attendance.overdueFollowUps} Overdue Follow-ups →
+                  </Link>
+               )}
+               {dashboard.financial.outstandingBalance > 0 && (
+                  <Link href="/billing" className="bg-yellow-100 text-yellow-800 px-4 py-3 rounded-lg text-sm font-medium hover:bg-yellow-200 transition">
+                    Pending Balances to Collect →
+                  </Link>
+               )}
+            </div>
+          </section>
+        </>
+      ) : null}
     </div>
   );
 }

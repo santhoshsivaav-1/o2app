@@ -23,6 +23,10 @@ import { EnquiriesController } from "./enquiries/enquiries.controller.js";
 import { AttendanceService } from "./attendance/attendance.service.js";
 import { AttendanceController } from "./attendance/attendance.controller.js";
 import { DeviceIngestController } from "./attendance/device-ingest.controller.js";
+import { ReportsService } from "./reports/reports.service.js";
+import { ReportsController } from "./reports/reports.controller.js";
+import { JobsService } from "./jobs/jobs.service.js";
+import { JobsController } from "./jobs/jobs.controller.js";
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ name: "default", ttl: 60000, limit: 120 }])],
@@ -39,6 +43,8 @@ import { DeviceIngestController } from "./attendance/device-ingest.controller.js
     EnquiriesController,
     AttendanceController,
     DeviceIngestController,
+    ReportsController,
+    JobsController,
   ],
   providers: [
     PrismaService,
@@ -51,6 +57,8 @@ import { DeviceIngestController } from "./attendance/device-ingest.controller.js
     BillingService,
     EnquiriesService,
     AttendanceService,
+    ReportsService,
+    JobsService,
     Reflector,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },

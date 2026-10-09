@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "O2 Oxygen Fitness Studio — Gym Management",
   description:
     "Member, membership, billing and attendance management for O2 Oxygen Fitness Studio.",
+  manifest: "/manifest.json",
 };
 
 export const viewport: Viewport = {
@@ -13,11 +14,14 @@ export const viewport: Viewport = {
   colorScheme: "light",
 };
 
+import { OfflineIndicator } from "../components/OfflineIndicator";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
         <Providers>{children}</Providers>
+        <OfflineIndicator />
       </body>
     </html>
   );

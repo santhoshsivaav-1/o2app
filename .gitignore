@@ -17,3 +17,4 @@ turbo/
 .turbo/
 cookies*.txt
 *.log
+.neon

@@ -1,7 +1,5 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import ComingSoon from "../../../components/ComingSoon";
-
-export default function Page() {
-  return <ComingSoon module="Reports" phase="Phase 8" />;
+export default function ReportsIndex() {
+  redirect("/reports/members");
 }
