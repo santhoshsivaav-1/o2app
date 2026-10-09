@@ -21,6 +21,7 @@ model User {
   updatedAt      DateTime  @updatedAt
   userRoles      UserRole[]
   sessions       Session[]
+  trainedMembers Member[]  @relation("TrainerMembers")
 }
 
 model Role {
@@ -78,4 +79,87 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([entity, entityId])
+}
+
+model GenderCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  members   Member[]
+}
+
+model Member {
+  id                String          @id @default(uuid())
+  memberCode        String          @unique
+  fullName          String
+  mobile            String
+  mobileNorm        String
+  email             String?
+  genderId          String
+  gender            GenderCategory  @relation(fields: [genderId], references: [id], onDelete: Restrict)
+  dob               DateTime?       @db.Date
+  address           String?
+  emergencyContact  String?
+  registrationDate  DateTime        @default(now()) @db.Date
+  photoUrl          String?
+  notes             String?
+  status            String          @default("active")
+  source            String?
+  assignedTrainerId String?
+  assignedTrainer   User?           @relation("TrainerMembers", fields: [assignedTrainerId], references: [id], onDelete: SetNull)
+  deviceUserId      String?         @unique
+  archivedAt        DateTime?
+  archivedById      String?
+  createdById       String?
+  updatedById       String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  memberNotes       MemberNote[]
+
+  @@index([mobileNorm])
+  @@index([status])
+  @@index([fullName])
+  @@index([registrationDate])
+}
+
+model MemberNote {
+  id          String   @id @default(uuid())
+  memberId    String
+  member      Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  body        String
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([memberId])
+}
+
+model Package {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  durationValue   Int
+  durationUnit    String   @default("MONTH")
+  durationDays    Int
+  price           Decimal  @db.Decimal(12, 2)
+  registrationFee Decimal  @default(0) @db.Decimal(12, 2)
+  discountMaxPct  Decimal? @db.Decimal(5, 2)
+  gstPercent      Decimal? @db.Decimal(5, 2)
+  isActive        Boolean  @default(true)
+  eligibility     String?
+  createdById     String?
+  updatedById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+model SeqCounter {
+  name String
+  year Int
+  last Int @default(0)
+
+  @@id([name, year])
 }

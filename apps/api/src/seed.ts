@@ -30,6 +30,11 @@ async function main() {
     console.log(`role ${name}: ${rows.length} permissions`);
   }
 
+  for (const name of ["Male", "Female", "Other"]) {
+    await prisma.genderCategory.upsert({ where: { name }, update: {}, create: { name } });
+  }
+  console.log("gender categories seeded");
+
   const ownerCount = await prisma.userRole.count({ where: { role: { name: "owner" } } });
   const email = arg("email") ?? arg("owner_email");
   const password = arg("password") ?? arg("owner_password");

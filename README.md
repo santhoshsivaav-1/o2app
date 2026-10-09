@@ -49,6 +49,20 @@ shell with permission-filtered nav, dashboard stub, staff / roles-permissions /
 profile (change password, sign out everywhere) pages. Auth tests: unit (argon2, JWT,
 CSRF) + `RUN_AUTH_FLOW=1` integration (login, 403s, rotation, logout).
 
+## Phase 3 status — DONE (members + packages)
+
+Backend: gender categories (seeded Male/Female/Other, `settings.manage` to extend),
+member CRUD with auto `O2-YYYY-####` codes (transactional sequence), duplicate-mobile
+409 + explicit audited override, server search/filter/sort/pagination, CSV export
+(`data.export`), archive/restore (no hard deletes), follow-up notes, package CRUD +
+deactivate-preserves-history (`settings.manage` writes, open read). Migration
+`phase3_members_packages`.
+
+Web: member directory (search/filters/pagination/export), RHF + shared-Zod
+registration with duplicate-confirmation flow, member profile (edit, notes,
+archive/restore), packages manager, honest Coming-Soon stubs for Phases 4–8 so no
+nav 404s. Tests: shared 11/11, api 7/7 with `RUN_AUTH_FLOW=1`.
+
 ## Quick links
 
 - `docs/requirements.md`, `docs/database-erd.md`, `docs/api.md`, `docs/roles-permissions.md`

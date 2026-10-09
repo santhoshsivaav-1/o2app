@@ -9,14 +9,30 @@ import { AuthController } from "./auth/auth.controller.js";
 import { UsersController } from "./auth/users.controller.js";
 import { RolesController } from "./auth/roles.controller.js";
 import { CsrfGuard, JwtAuthGuard, PermissionsGuard } from "./auth/guards.js";
+import { SequenceService } from "./members/sequences.js";
+import { MembersService } from "./members/members.service.js";
+import { MembersController } from "./members/members.controller.js";
+import { PackagesController, PackagesService } from "./members/packages.controller.js";
+import { GendersController } from "./members/genders.controller.js";
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ name: "default", ttl: 60000, limit: 120 }])],
-  controllers: [HealthController, AuthController, UsersController, RolesController],
+  controllers: [
+    HealthController,
+    AuthController,
+    UsersController,
+    RolesController,
+    MembersController,
+    PackagesController,
+    GendersController,
+  ],
   providers: [
     PrismaService,
     AuditService,
     AuthService,
+    SequenceService,
+    MembersService,
+    PackagesService,
     Reflector,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },

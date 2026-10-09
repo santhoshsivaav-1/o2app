@@ -9,9 +9,11 @@ export function readCookie(name: string): string | undefined {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  details: unknown;
+  constructor(status: number, message: string, details?: unknown) {
     super(message);
     this.status = status;
+    this.details = details;
   }
 }
 
@@ -30,8 +32,14 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    const msg = (data && (data.message ?? data.error)) || `Request failed (${res.status})`;
-    throw new ApiError(res.status, Array.isArray(msg) ? msg.join(", ") : String(msg));
+    const raw = data && (data.message ?? data.error);
+    const message =
+      typeof raw === "string"
+        ? raw
+        : raw && typeof raw.message === "string"
+          ? raw.message
+          : `Request failed (${res.status})`;
+    throw new ApiError(res.status, message, data);
   }
   return data as T;
 }

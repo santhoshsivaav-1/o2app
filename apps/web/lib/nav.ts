@@ -9,6 +9,7 @@ export const NAV: NavItem[] = [
   { href: "/members", label: "Members", perm: "members.read" },
   { href: "/enquiries", label: "Enquiries", perm: "enquiries.manage" },
   { href: "/memberships", label: "Memberships", perm: "memberships.create" },
+  { href: "/packages", label: "Packages", perm: "memberships.create" },
   { href: "/attendance", label: "Attendance", perm: "attendance.read" },
   { href: "/billing", label: "Billing", perm: "payments.collect" },
   { href: "/reports", label: "Reports", perm: "reports.attendance.read" },

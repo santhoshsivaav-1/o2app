@@ -1,3 +1,5 @@
+export * from "./members.js";
+
 export type RoleName = "owner" | "manager" | "receptionist" | "trainer" | "accountant";
 
 export const PERMISSIONS = [

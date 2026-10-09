@@ -11,10 +11,14 @@
     "test": "echo 'web tests: none yet (Playwright lands Phase 10)'"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.9.1",
+    "@o2app/shared": "workspace:^",
     "@tanstack/react-query": "^5.104.1",
     "next": "^14.2.15",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.89.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^22.7.5",

@@ -6,7 +6,6 @@ export const metadata: Metadata = {
   title: "O2 Oxygen Fitness Studio — Gym Management",
   description:
     "Member, membership, billing and attendance management for O2 Oxygen Fitness Studio.",
-  themeColor: "#0a0908",
 };
 
 export const viewport: Viewport = {
