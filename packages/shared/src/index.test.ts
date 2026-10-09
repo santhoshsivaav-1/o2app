@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { calcInvoice, calcEndDate, dedupeKey, membershipStatus } from "./index.js";
+import {
+  calcInvoice,
+  calcEndDate,
+  dedupeKey,
+  membershipStatus,
+  hasPermissions,
+  ROLE_DEFAULTS,
+} from "./index.js";
 
 test("GST exclusive default 18%", () => {
   assert.deepEqual(calcInvoice({ subtotal: 1000, discount: 100 }), {
@@ -26,4 +33,11 @@ test("dedupe key + status", () => {
   assert.equal(dedupeKey("d1", "e5"), "d1:e5");
   assert.equal(membershipStatus("2026-01-01", "2026-01-30", "2026-01-15"), "active");
   assert.equal(membershipStatus("2026-01-01", "2026-01-30", "2026-02-01"), "expired");
+});
+test("permission checks + owner has all", () => {
+  assert.equal(hasPermissions(["members.read"], ["members.read"]), true);
+  assert.equal(hasPermissions(["members.read"], ["members.create"]), false);
+  for (const [, perms] of Object.entries(ROLE_DEFAULTS)) {
+    assert.ok(perms.every((p) => ROLE_DEFAULTS.owner.includes(p)));
+  }
 });

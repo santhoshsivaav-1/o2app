@@ -10,16 +10,17 @@
 > @o2app/shared@0.1.0 test /Users/santhoshsivaa/projects/o2app/packages/shared
 > node --test dist/**/*.test.js
 
-✔ GST exclusive default 18% (0.6325ms)
-✔ GST inclusive (0.081791ms)
-✔ invalid discount rejected (0.102542ms)
-✔ inclusive end-date (1.532ms)
-✔ dedupe key + status (0.201375ms)
-ℹ tests 5
+✔ GST exclusive default 18% (0.547208ms)
+✔ GST inclusive (0.064833ms)
+✔ invalid discount rejected (0.418417ms)
+✔ inclusive end-date (0.619334ms)
+✔ dedupe key + status (0.063042ms)
+✔ permission checks + owner has all (0.096458ms)
+ℹ tests 6
 ℹ suites 0
-ℹ pass 5
+ℹ pass 6
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 44.120958
+ℹ duration_ms 39.680541

@@ -59,6 +59,40 @@ export function outstanding(total: number, allocated: number): number {
   return round2(total - allocated);
 }
 
+export function hasPermissions(userPerms: readonly string[], required: readonly string[]): boolean {
+  return required.every((p) => userPerms.includes(p));
+}
+
+export const ROLE_DEFAULTS: Record<RoleName, Permission[]> = {
+  owner: [...PERMISSIONS],
+  manager: [
+    "members.read",
+    "members.create",
+    "members.update",
+    "enquiries.manage",
+    "memberships.create",
+    "memberships.renew",
+    "attendance.read",
+    "attendance.correct",
+    "payments.collect",
+    "reports.financial.read",
+    "reports.attendance.read",
+    "data.export",
+  ],
+  receptionist: [
+    "members.read",
+    "members.create",
+    "members.update",
+    "enquiries.manage",
+    "memberships.create",
+    "memberships.renew",
+    "attendance.read",
+    "payments.collect",
+  ],
+  trainer: ["members.read", "attendance.read", "reports.attendance.read"],
+  accountant: ["payments.collect", "payments.refund", "reports.financial.read", "data.export"],
+};
+
 // Membership dates: inclusive end-date rule, timezone-agnostic date strings (YYYY-MM-DD)
 export function calcEndDate(startDate: string, durationDays: number): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) throw new Error("startDate must be YYYY-MM-DD");

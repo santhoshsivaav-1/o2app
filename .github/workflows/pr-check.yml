@@ -6,6 +6,33 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: gym
+          POSTGRES_PASSWORD: gym
+          POSTGRES_DB: gym
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://gym:gym@localhost:5432/gym?schema=public
+      DIRECT_URL: postgresql://gym:gym@localhost:5432/gym?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret-32-chars-minimum!
+      JWT_REFRESH_SECRET: ci-refresh-secret-32-chars-minimum
+      SESSION_SECRET: ci-session-secret-32-chars-minimum
+      CSRF_SECRET: ci-csrf-secret-32-chars-minimum!!
+      JOBS_SECRET: ci-jobs-secret-32-chars-minimum!!
+      WEB_ORIGIN: http://localhost:3000
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+      OWNER_EMAIL: owner@o2.ci
+      OWNER_PASSWORD: CI-Owner-2026-01!
+      RUN_AUTH_FLOW: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -19,5 +46,7 @@ jobs:
       - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm lint
+      - run: pnpm db:deploy
+      - run: pnpm --filter @o2app/api seed
       - run: pnpm test
       - run: pnpm build

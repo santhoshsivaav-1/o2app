@@ -1,4 +1,4 @@
-# Gym Management System (o2app)
+# Gym Management System (o2app) — O2 Oxygen Fitness Studio
 
 Single-gym, single-location management: members, packages, memberships, billing with GST, enquiries, fingerprint attendance (adapter + simulator until hardware known), dashboard/reports, reminders, RBAC, PWA.
 
@@ -32,6 +32,22 @@ curl localhost:4000/api/v1/health/ready && curl localhost:3000/healthz
 # checks:
 pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm build
 ```
+
+## Phase 2 status — DONE (auth + RBAC + O2 branded shell)
+
+Backend: Argon2id login, httpOnly cookie sessions (15-min access + 7-day rotating
+refresh), double-submit CSRF, DB lockout (5 fails → 15 min) + rate limits, users /
+roles / permissions APIs with `staff.manage` + `roles.manage` guards, audit logs,
+`pnpm --filter @o2app/api seed` bootstrap (roles + owner, idempotent).
+
+```sh
+OWNER_EMAIL=owner@o2.fit OWNER_PASSWORD='ChangeMe123!x' pnpm --filter @o2app/api seed
+```
+
+Web: black/orange O2 Oxygen Fitness Studio theme, login page, sidebar + topbar app
+shell with permission-filtered nav, dashboard stub, staff / roles-permissions /
+profile (change password, sign out everywhere) pages. Auth tests: unit (argon2, JWT,
+CSRF) + `RUN_AUTH_FLOW=1` integration (login, 403s, rotation, logout).
 
 ## Quick links
 
