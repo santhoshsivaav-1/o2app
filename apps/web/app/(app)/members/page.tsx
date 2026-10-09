@@ -22,6 +22,12 @@ interface MemberRow {
   gender: Gender;
 }
 
+function StatusBadge({ status }: { status: string }) {
+  if (status === "active") return <span className="badge-green">Active</span>;
+  if (status === "inactive") return <span className="badge-amber">Inactive</span>;
+  return <span className="badge">Archived</span>;
+}
+
 export default function MembersPage() {
   const { has } = useAuth();
   const [q, setQ] = useState("");
@@ -55,7 +61,6 @@ export default function MembersPage() {
 
   function downloadExport() {
     const url = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1"}/members/export?${params.toString()}`;
-    // Cookies go along; CSRF not needed for GET.
     fetch(url, { credentials: "include" }).then(async (res) => {
       if (!res.ok) throw new Error(`Export failed (${res.status})`);
       const blob = await res.blob();
@@ -73,8 +78,10 @@ export default function MembersPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-lg font-semibold">Members</h1>
-        <span className="badge">{total} total</span>
+        <div>
+          <h1 className="page-title">Members</h1>
+          <p className="page-sub">{total} registered · search by name, code or mobile</p>
+        </div>
         <span className="ml-auto flex gap-2">
           {has("data.export") && (
             <button className="btn-ghost text-sm" onClick={downloadExport}>
@@ -90,16 +97,19 @@ export default function MembersPage() {
       </div>
 
       <form
-        className="card grid gap-3 sm:grid-cols-2 lg:grid-cols-5"
+        className="card grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
         onSubmit={(e) => {
           e.preventDefault();
           setPage(1);
           members.refetch();
         }}
       >
-        <div className="lg:col-span-2">
-          <label className="label">Search name, code or mobile</label>
+        <div className="sm:col-span-2 lg:col-span-2">
+          <label className="label" htmlFor="mq">
+            Search
+          </label>
           <input
+            id="mq"
             className="input"
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -107,8 +117,11 @@ export default function MembersPage() {
           />
         </div>
         <div>
-          <label className="label">Status</label>
+          <label className="label" htmlFor="mstatus">
+            Status
+          </label>
           <select
+            id="mstatus"
             className="input"
             value={status}
             onChange={(e) => {
@@ -116,15 +129,18 @@ export default function MembersPage() {
               setPage(1);
             }}
           >
-            <option value="">All</option>
+            <option value="">All statuses</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
             <option value="archived">Archived</option>
           </select>
         </div>
         <div>
-          <label className="label">Gender</label>
+          <label className="label" htmlFor="mgender">
+            Gender
+          </label>
           <select
+            id="mgender"
             className="input"
             value={genderId}
             onChange={(e) => {
@@ -140,35 +156,44 @@ export default function MembersPage() {
             ))}
           </select>
         </div>
-        <div className="flex items-end gap-2">
-          <div className="flex-1">
-            <label className="label">From</label>
-            <input
-              className="input"
-              type="date"
-              value={from}
-              onChange={(e) => {
-                setFrom(e.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-          <div className="flex-1">
-            <label className="label">To</label>
-            <input
-              className="input"
-              type="date"
-              value={to}
-              onChange={(e) => {
-                setTo(e.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
+        <div>
+          <label className="label" htmlFor="mfrom">
+            Registered from
+          </label>
+          <input
+            id="mfrom"
+            className="input"
+            type="date"
+            value={from}
+            onChange={(e) => {
+              setFrom(e.target.value);
+              setPage(1);
+            }}
+          />
+        </div>
+        <div>
+          <label className="label" htmlFor="mto">
+            Registered to
+          </label>
+          <input
+            id="mto"
+            className="input"
+            type="date"
+            value={to}
+            onChange={(e) => {
+              setTo(e.target.value);
+              setPage(1);
+            }}
+          />
+        </div>
+        <div className="flex items-end sm:col-span-2 lg:col-span-2">
+          <button className="btn-primary text-sm" type="submit">
+            Apply filters
+          </button>
         </div>
       </form>
 
-      <div className="card overflow-x-auto p-0">
+      <div className="table-card">
         <table className="table">
           <thead>
             <tr>
@@ -182,53 +207,58 @@ export default function MembersPage() {
           </thead>
           <tbody>
             {members.data?.data.map((m) => (
-              <tr key={m.id} className="hover:bg-stone-800/30">
+              <tr key={m.id}>
                 <td>
-                  <Link href={`/members/${m.id}`} className="text-brand-300 hover:underline">
+                  <Link href={`/members/${m.id}`} className="link">
                     {m.memberCode}
                   </Link>
                 </td>
                 <td>
-                  <Link href={`/members/${m.id}`} className="hover:underline">
+                  <Link
+                    href={`/members/${m.id}`}
+                    className="font-medium text-stone-900 hover:text-brand-700"
+                  >
                     {m.fullName}
                   </Link>
                 </td>
-                <td className="text-stone-400">{m.mobile}</td>
+                <td className="tabular-nums text-stone-500">{m.mobile}</td>
                 <td>{m.gender.name}</td>
                 <td>
-                  <span className="badge">{m.status}</span>
+                  <StatusBadge status={m.status} />
                 </td>
-                <td className="text-stone-400">{m.registrationDate.slice(0, 10)}</td>
+                <td className="text-stone-500">{m.registrationDate.slice(0, 10)}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        {members.isLoading && <p className="p-4 text-sm text-stone-500">Loading…</p>}
+        {members.isLoading && <p className="p-4 text-sm text-stone-500">Loading members…</p>}
         {members.data?.data.length === 0 && (
-          <p className="p-4 text-sm text-stone-500">
-            No members match — try a different search or register a new member.
-          </p>
+          <div className="p-8 text-center">
+            <p className="font-medium text-stone-900">No members match</p>
+            <p className="mt-1 text-sm text-stone-500">
+              Try a different search, or register a new member.
+            </p>
+          </div>
         )}
-      </div>
-
-      <div className="flex items-center gap-3 text-sm">
-        <button
-          className="btn-ghost px-3 py-1"
-          disabled={page <= 1}
-          onClick={() => setPage(page - 1)}
-        >
-          ← Prev
-        </button>
-        <span className="text-stone-400">
-          Page {page} of {pages}
-        </span>
-        <button
-          className="btn-ghost px-3 py-1"
-          disabled={page >= pages}
-          onClick={() => setPage(page + 1)}
-        >
-          Next →
-        </button>
+        <div className="flex items-center gap-3 border-t border-stone-200 bg-stone-50 px-4 py-2.5 text-sm">
+          <button
+            className="btn-ghost px-3 py-1 text-xs"
+            disabled={page <= 1}
+            onClick={() => setPage(page - 1)}
+          >
+            ← Prev
+          </button>
+          <span className="text-stone-500">
+            Page {page} of {pages}
+          </span>
+          <button
+            className="btn-ghost px-3 py-1 text-xs"
+            disabled={page >= pages}
+            onClick={() => setPage(page + 1)}
+          >
+            Next →
+          </button>
+        </div>
       </div>
     </div>
   );

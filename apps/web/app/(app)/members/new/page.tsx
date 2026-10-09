@@ -19,7 +19,7 @@ interface DupeMatch {
   mobile: string;
 }
 
-const err = "mt-1 text-xs text-red-300";
+const err = "field-err";
 
 export default function NewMemberPage() {
   const router = useRouter();
@@ -57,7 +57,7 @@ export default function NewMemberPage() {
         const details = e.details as { matches?: DupeMatch[] } | null;
         setDupe(details?.matches ?? []);
         setServerError(
-          "Possible duplicate — same mobile already registered. Confirm below to proceed.",
+          "Possible duplicate — this mobile number is already registered. Review the matches, or confirm to register anyway.",
         );
       } else {
         setServerError(e instanceof ApiError ? e.message : "Registration failed");
@@ -74,77 +74,93 @@ export default function NewMemberPage() {
   }
 
   return (
-    <div className="max-w-2xl space-y-4">
-      <h1 className="text-lg font-semibold">New member registration</h1>
-      <form className="card grid gap-4 sm:grid-cols-2" onSubmit={handleSubmit(onSubmit)}>
-        <div>
-          <label className="label">Full name *</label>
-          <input className="input" {...register("fullName")} />
-          {errors.fullName && <p className={err}>{errors.fullName.message}</p>}
-        </div>
-        <div>
-          <label className="label">Mobile *</label>
-          <input className="input" {...register("mobile")} placeholder="+91 …" />
-          {errors.mobile && <p className={err}>{errors.mobile.message}</p>}
-        </div>
-        <div>
-          <label className="label">Gender *</label>
-          <select className="input" {...register("genderId")} defaultValue="">
-            <option value="" disabled>
-              Select…
-            </option>
-            {genders.data?.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
+    <div className="max-w-3xl space-y-4">
+      <div>
+        <h1 className="page-title">New member registration</h1>
+        <p className="page-sub">
+          Only the essentials — a member code is generated automatically on save.
+        </p>
+      </div>
+      <form className="card" onSubmit={handleSubmit(onSubmit)}>
+        <h2 className="section-title">Personal details</h2>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">Full name *</label>
+            <input className="input" {...register("fullName")} placeholder="Asha Kumar" />
+            {errors.fullName && <p className={err}>{errors.fullName.message}</p>}
+          </div>
+          <div>
+            <label className="label">Mobile *</label>
+            <input className="input" {...register("mobile")} placeholder="+91 …" />
+            {errors.mobile && <p className={err}>{errors.mobile.message}</p>}
+          </div>
+          <div>
+            <label className="label">Gender *</label>
+            <select className="input" {...register("genderId")} defaultValue="">
+              <option value="" disabled>
+                Select…
               </option>
-            ))}
-          </select>
-          {errors.genderId && <p className={err}>{errors.genderId.message}</p>}
+              {genders.data?.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+            {errors.genderId && <p className={err}>{errors.genderId.message}</p>}
+          </div>
+          <div>
+            <label className="label">Email</label>
+            <input
+              className="input"
+              type="email"
+              {...register("email")}
+              placeholder="asha@example.com"
+            />
+            {errors.email && <p className={err}>{errors.email.message}</p>}
+          </div>
+          <div>
+            <label className="label">Date of birth</label>
+            <input className="input" type="date" {...register("dob")} />
+            {errors.dob && <p className={err}>{errors.dob.message}</p>}
+          </div>
+          <div>
+            <label className="label">Registration date</label>
+            <input className="input" type="date" {...register("registrationDate")} />
+            <p className="hint">Defaults to today.</p>
+          </div>
         </div>
-        <div>
-          <label className="label">Email</label>
-          <input className="input" type="email" {...register("email")} />
-          {errors.email && <p className={err}>{errors.email.message}</p>}
+
+        <h2 className="section-title mt-6">Contact & context</h2>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label className="label">Address</label>
+            <input className="input" {...register("address")} />
+          </div>
+          <div>
+            <label className="label">Emergency contact</label>
+            <input className="input" {...register("emergencyContact")} />
+          </div>
+          <div>
+            <label className="label">Source</label>
+            <input className="input" {...register("source")} placeholder="Walk-in, referral…" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Notes</label>
+            <textarea className="input" rows={3} {...register("notes")} />
+          </div>
         </div>
-        <div>
-          <label className="label">Date of birth</label>
-          <input className="input" type="date" {...register("dob")} />
-          {errors.dob && <p className={err}>{errors.dob.message}</p>}
-        </div>
-        <div>
-          <label className="label">Registration date</label>
-          <input className="input" type="date" {...register("registrationDate")} />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="label">Address</label>
-          <input className="input" {...register("address")} />
-        </div>
-        <div>
-          <label className="label">Emergency contact</label>
-          <input className="input" {...register("emergencyContact")} />
-        </div>
-        <div>
-          <label className="label">Source (walk-in, referral…)</label>
-          <input className="input" {...register("source")} />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="label">Notes</label>
-          <textarea className="input" rows={3} {...register("notes")} />
-        </div>
+
         {serverError && (
-          <p
-            role="alert"
-            className="rounded-lg border border-red-900 bg-red-950/50 px-3 py-2 text-sm text-red-300 sm:col-span-2"
-          >
+          <p role="alert" className="alert-error mt-4">
             {serverError}
           </p>
         )}
         {dupe && dupe.length > 0 && (
-          <div className="space-y-2 rounded-lg border border-amber-800 bg-amber-950/40 p-3 sm:col-span-2">
-            <p className="text-sm text-amber-200">Existing member(s) with this mobile:</p>
+          <div className="alert-warn mt-4 space-y-2">
+            <p className="font-medium">Existing member(s) with this mobile:</p>
             {dupe.map((d) => (
               <p key={d.id} className="text-sm">
-                <Link href={`/members/${d.id}`} className="text-brand-300 hover:underline">
+                <Link href={`/members/${d.id}`} className="link">
                   {d.memberCode} — {d.fullName} ({d.mobile})
                 </Link>
               </p>
@@ -154,7 +170,7 @@ export default function NewMemberPage() {
             </button>
           </div>
         )}
-        <div className="flex gap-2 sm:col-span-2">
+        <div className="mt-6 flex gap-2 border-t border-stone-100 pt-4">
           <button className="btn-primary" type="submit" disabled={isSubmitting}>
             {isSubmitting ? "Registering…" : "Register member"}
           </button>

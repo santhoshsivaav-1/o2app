@@ -26,7 +26,7 @@ interface Pkg {
   isActive: boolean;
 }
 
-const err = "mt-1 text-xs text-red-300";
+const err = "field-err";
 const empty: FormValues = {
   name: "",
   description: "",
@@ -37,6 +37,10 @@ const empty: FormValues = {
   eligibility: "",
 };
 
+function inr(n: string | number): string {
+  return `₹${Number(n).toLocaleString("en-IN")}`;
+}
+
 export default function PackagesPage() {
   const { has } = useAuth();
   const queryClient = useQueryClient();
@@ -44,6 +48,7 @@ export default function PackagesPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [editing, setEditing] = useState<Pkg | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [msgOk, setMsgOk] = useState(false);
 
   const packages = useQuery({
     queryKey: ["packages", showInactive],
@@ -85,12 +90,16 @@ export default function PackagesPage() {
         ? apiFetch(`/packages/${editing.id}`, { method: "PATCH", body: JSON.stringify(values) })
         : apiFetch("/packages", { method: "POST", body: JSON.stringify(values) }),
     onSuccess: () => {
+      setMsgOk(true);
       setMsg(editing ? "Package updated." : "Package created.");
       setEditing(null);
       reset(empty);
       queryClient.invalidateQueries({ queryKey: ["packages"] });
     },
-    onError: (e) => setMsg(e instanceof ApiError ? e.message : "Save failed"),
+    onError: (e) => {
+      setMsgOk(false);
+      setMsg(e instanceof ApiError ? e.message : "Save failed");
+    },
   });
 
   const deactivate = useMutation({
@@ -100,12 +109,15 @@ export default function PackagesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold">Membership packages</h1>
-        <label className="ml-auto flex items-center gap-2 text-sm text-stone-400">
+      <div className="flex flex-wrap items-center gap-3">
+        <div>
+          <h1 className="page-title">Membership packages</h1>
+          <p className="page-sub">What the front desk can sell — durations, pricing and GST.</p>
+        </div>
+        <label className="ml-auto flex cursor-pointer items-center gap-2 text-sm text-stone-600">
           <input
             type="checkbox"
-            className="accent-orange-500"
+            className="h-4 w-4 accent-orange-600"
             checked={showInactive}
             onChange={(e) => setShowInactive(e.target.checked)}
           />
@@ -113,24 +125,26 @@ export default function PackagesPage() {
         </label>
       </div>
 
+      {packages.isLoading && <p className="text-sm text-stone-500">Loading packages…</p>}
+
       <div className="grid gap-4 lg:grid-cols-2">
         {packages.data?.map((p: Pkg) => (
           <div key={p.id} className="card">
-            <div className="flex items-center gap-2">
-              <p className="font-medium">{p.name}</p>
-              <span className="badge">{p.isActive ? "active" : "inactive"}</span>
-              <span className="badge">
-                {p.durationValue} {p.durationUnit === "MONTH" ? "month(s)" : "day(s)"} ·{" "}
-                {p.durationDays} days
-              </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-semibold text-stone-900">{p.name}</p>
+              {p.isActive ? (
+                <span className="badge-green">Active</span>
+              ) : (
+                <span className="badge">Inactive</span>
+              )}
               {canWrite && (
                 <span className="ml-auto flex gap-2">
-                  <button className="btn-ghost px-2 py-1 text-xs" onClick={() => startEdit(p)}>
+                  <button className="btn-ghost px-2.5 py-1 text-xs" onClick={() => startEdit(p)}>
                     Edit
                   </button>
                   {p.isActive && (
                     <button
-                      className="btn-ghost px-2 py-1 text-xs"
+                      className="btn-danger px-2.5 py-1 text-xs"
                       onClick={() => deactivate.mutate(p.id)}
                     >
                       Deactivate
@@ -139,107 +153,137 @@ export default function PackagesPage() {
                 </span>
               )}
             </div>
-            <p className="mt-2 text-xl font-semibold text-brand-300">
-              ₹{Number(p.price).toLocaleString("en-IN")}
-            </p>
-            <p className="mt-1 text-xs text-stone-500">
-              Reg. fee ₹{Number(p.registrationFee).toLocaleString("en-IN")}
-              {p.gstPercent !== null ? ` · GST ${p.gstPercent}%` : " · GST default"}
-              {p.discountMaxPct !== null ? ` · max discount ${p.discountMaxPct}%` : ""}
-            </p>
-            {p.description && <p className="mt-2 text-sm text-stone-400">{p.description}</p>}
+            <div className="mt-3 flex items-baseline gap-2">
+              <p className="text-2xl font-bold tracking-tight text-stone-900">{inr(p.price)}</p>
+              <p className="text-xs text-stone-500">
+                {p.durationValue} {p.durationUnit === "MONTH" ? "month(s)" : "day(s)"} ·{" "}
+                {p.durationDays} days
+              </p>
+            </div>
+            <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-stone-100 pt-3 text-xs">
+              <div>
+                <dt className="text-stone-400">Reg. fee</dt>
+                <dd className="mt-0.5 font-medium text-stone-800">{inr(p.registrationFee)}</dd>
+              </div>
+              <div>
+                <dt className="text-stone-400">GST</dt>
+                <dd className="mt-0.5 font-medium text-stone-800">
+                  {p.gstPercent !== null ? `${p.gstPercent}%` : "Gym default"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-stone-400">Max discount</dt>
+                <dd className="mt-0.5 font-medium text-stone-800">
+                  {p.discountMaxPct !== null ? `${p.discountMaxPct}%` : "—"}
+                </dd>
+              </div>
+            </dl>
+            {p.description && <p className="mt-3 text-sm text-stone-600">{p.description}</p>}
           </div>
         ))}
       </div>
       {packages.data?.length === 0 && (
-        <p className="text-sm text-stone-500">No packages yet — create the first one below.</p>
+        <div className="card text-center">
+          <p className="font-medium text-stone-900">No packages yet</p>
+          <p className="mt-1 text-sm text-stone-500">
+            Create the first package below to start selling memberships.
+          </p>
+        </div>
       )}
 
       {canWrite ? (
-        <form
-          className="card grid max-w-2xl gap-4 sm:grid-cols-2"
-          onSubmit={handleSubmit((v) => save.mutate(v))}
-        >
-          <h2 className="font-medium sm:col-span-2">
+        <form className="card max-w-3xl" onSubmit={handleSubmit((v) => save.mutate(v))}>
+          <h2 className="text-base font-semibold text-stone-900">
             {editing ? `Edit ${editing.name}` : "New package"}
           </h2>
-          <div>
-            <label className="label">Name *</label>
-            <input className="input" {...register("name")} />
-            {errors.name && <p className={err}>{errors.name.message}</p>}
-          </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label">Duration *</label>
+              <label className="label">Name *</label>
+              <input
+                className="input"
+                {...register("name")}
+                placeholder="Quarterly Transformation"
+              />
+              {errors.name && <p className={err}>{errors.name.message}</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="label">Duration *</label>
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  {...register("durationValue", { valueAsNumber: true })}
+                />
+                {errors.durationValue && <p className={err}>{errors.durationValue.message}</p>}
+              </div>
+              <div>
+                <label className="label">Unit *</label>
+                <select className="input" {...register("durationUnit")}>
+                  <option value="MONTH">Month(s)</option>
+                  <option value="DAY">Day(s)</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="label">Price (₹) *</label>
               <input
                 className="input"
                 type="number"
-                min={1}
-                {...register("durationValue", { valueAsNumber: true })}
+                min={0}
+                step="0.01"
+                {...register("price", { valueAsNumber: true })}
               />
-              {errors.durationValue && <p className={err}>{errors.durationValue.message}</p>}
+              {errors.price && <p className={err}>{errors.price.message}</p>}
             </div>
             <div>
-              <label className="label">Unit *</label>
-              <select className="input" {...register("durationUnit")}>
-                <option value="MONTH">Month(s)</option>
-                <option value="DAY">Day(s)</option>
-              </select>
+              <label className="label">Registration fee (₹)</label>
+              <input
+                className="input"
+                type="number"
+                min={0}
+                step="0.01"
+                {...register("registrationFee", { valueAsNumber: true })}
+              />
+            </div>
+            <div>
+              <label className="label">GST %</label>
+              <input
+                className="input"
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                {...register("gstPercent", { valueAsNumber: true })}
+              />
+              <p className="hint">Blank = gym default.</p>
+            </div>
+            <div>
+              <label className="label">Max discount %</label>
+              <input
+                className="input"
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                {...register("discountMaxPct", { valueAsNumber: true })}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Description</label>
+              <textarea className="input" rows={2} {...register("description")} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Eligibility notes</label>
+              <input
+                className="input"
+                {...register("eligibility")}
+                placeholder="e.g. Couples only"
+              />
             </div>
           </div>
-          <div>
-            <label className="label">Price (₹) *</label>
-            <input
-              className="input"
-              type="number"
-              min={0}
-              step="0.01"
-              {...register("price", { valueAsNumber: true })}
-            />
-            {errors.price && <p className={err}>{errors.price.message}</p>}
-          </div>
-          <div>
-            <label className="label">Registration fee (₹)</label>
-            <input
-              className="input"
-              type="number"
-              min={0}
-              step="0.01"
-              {...register("registrationFee", { valueAsNumber: true })}
-            />
-          </div>
-          <div>
-            <label className="label">GST % (blank = gym default)</label>
-            <input
-              className="input"
-              type="number"
-              min={0}
-              max={100}
-              step="0.01"
-              {...register("gstPercent", { valueAsNumber: true })}
-            />
-          </div>
-          <div>
-            <label className="label">Max discount %</label>
-            <input
-              className="input"
-              type="number"
-              min={0}
-              max={100}
-              step="0.01"
-              {...register("discountMaxPct", { valueAsNumber: true })}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="label">Description</label>
-            <textarea className="input" rows={2} {...register("description")} />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="label">Eligibility notes</label>
-            <input className="input" {...register("eligibility")} />
-          </div>
-          {msg && <p className="text-sm text-stone-300 sm:col-span-2">{msg}</p>}
-          <div className="flex gap-2 sm:col-span-2">
+          {msg && <p className={msgOk ? "alert-ok mt-4" : "alert-error mt-4"}>{msg}</p>}
+          <div className="mt-4 flex gap-2 border-t border-stone-100 pt-4">
             <button className="btn-primary" type="submit" disabled={isSubmitting || save.isPending}>
               {editing ? "Save changes" : "Create package"}
             </button>
@@ -252,7 +296,7 @@ export default function PackagesPage() {
         </form>
       ) : (
         <p className="text-sm text-stone-500">
-          Package changes require the owner (settings.manage permission).
+          Package changes require the owner — your account can browse but not edit.
         </p>
       )}
     </div>

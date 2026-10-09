@@ -50,68 +50,84 @@ export default function RolesPage() {
 
   if (!has("roles.manage"))
     return (
-      <div className="card">
-        <h1 className="text-lg font-semibold">Not permitted</h1>
-        <p className="mt-1 text-sm text-stone-400">
-          Your account lacks <code>roles.manage</code>.
-        </p>
+      <div>
+        <h1 className="page-title">Roles & permissions</h1>
+        <div className="card mt-4">
+          <p className="font-medium text-stone-900">Not permitted</p>
+          <p className="mt-1 text-sm text-stone-500">
+            Your account lacks <code className="rounded bg-stone-100 px-1">roles.manage</code>.
+          </p>
+        </div>
       </div>
     );
 
   return (
-    <div className="card space-y-4">
-      <h1 className="text-lg font-semibold">Roles & permissions</h1>
+    <div className="space-y-4">
+      <div>
+        <h1 className="page-title">Roles & permissions</h1>
+        <p className="page-sub">
+          Templates that decide what each staff member can see and do. Backend-enforced on every
+          request.
+        </p>
+      </div>
       {error && (
-        <p role="alert" className="text-sm text-red-300">
+        <p role="alert" className="alert-error">
           {error}
         </p>
       )}
-      {roles.data?.map((r) => (
-        <div key={r.id} className="rounded-lg border border-stone-800 p-4">
-          <div className="flex items-center gap-3">
-            <p className="font-medium">{r.name}</p>
-            <span className="badge">{r.userCount} users</span>
-            <span className="badge">{r.permissions.length} permissions</span>
-            <button
-              className="btn-ghost ml-auto px-2 py-1 text-xs"
-              onClick={() => (editing === r.id ? setEditing(null) : startEdit(r))}
-            >
-              {editing === r.id ? "Cancel" : "Edit"}
-            </button>
-          </div>
-          {editing === r.id ? (
-            <div className="mt-3 space-y-3">
-              <div className="flex flex-wrap gap-2">
-                {perms.data?.permissions.map((p) => (
-                  <label key={p} className="badge cursor-pointer gap-1">
-                    <input
-                      type="checkbox"
-                      className="accent-orange-500"
-                      checked={checked.includes(p)}
-                      onChange={(e) =>
-                        setChecked(
-                          e.target.checked ? [...checked, p] : checked.filter((x) => x !== p),
-                        )
-                      }
-                    />
-                    {p}
-                  </label>
-                ))}
-              </div>
+      <div className="space-y-3">
+        {roles.data?.map((r) => (
+          <div key={r.id} className="card">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-semibold capitalize text-stone-900">{r.name}</p>
+              <span className="badge">{r.userCount} users</span>
+              <span className="badge">{r.permissions.length} permissions</span>
               <button
-                className="btn-primary"
-                disabled={save.isPending}
-                onClick={() => save.mutate()}
+                className="btn-ghost ml-auto px-2.5 py-1 text-xs"
+                onClick={() => (editing === r.id ? setEditing(null) : startEdit(r))}
               >
-                {save.isPending ? "Saving…" : "Save permissions"}
+                {editing === r.id ? "Cancel" : "Edit permissions"}
               </button>
             </div>
-          ) : (
-            <p className="mt-2 text-xs text-stone-500">{r.permissions.join(", ")}</p>
-          )}
-        </div>
-      ))}
-      {roles.isLoading && <p className="text-sm text-stone-500">Loading…</p>}
+            {editing === r.id ? (
+              <div className="mt-4 border-t border-stone-100 pt-4">
+                <div className="flex flex-wrap gap-2">
+                  {perms.data?.permissions.map((p) => (
+                    <label
+                      key={p}
+                      className="badge cursor-pointer gap-1.5 !py-1.5 hover:border-brand-300"
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-3.5 w-3.5 accent-orange-600"
+                        checked={checked.includes(p)}
+                        onChange={(e) =>
+                          setChecked(
+                            e.target.checked ? [...checked, p] : checked.filter((x) => x !== p),
+                          )
+                        }
+                      />
+                      {p}
+                    </label>
+                  ))}
+                </div>
+                <button
+                  className="btn-primary mt-4"
+                  disabled={save.isPending}
+                  onClick={() => save.mutate()}
+                >
+                  {save.isPending ? "Saving…" : "Save permissions"}
+                </button>
+              </div>
+            ) : (
+              <p className="mt-2 text-xs leading-relaxed text-stone-500">
+                {r.permissions.join(" · ")}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+      {roles.isLoading && <p className="text-sm text-stone-500">Loading roles…</p>}
     </div>
   );
 }

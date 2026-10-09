@@ -1,5 +1,10 @@
 # Gym Management System (o2app) — O2 Oxygen Fitness Studio
 
+Design: professional light theme (white surfaces, stone text, orange brand accents),
+grouped sidebar navigation, split-screen login. Shared classes in
+`apps/web/app/globals.css` (card, table-card, input, buttons, badges, alerts) —
+use them instead of inventing new styles per page.
+
 Single-gym, single-location management: members, packages, memberships, billing with GST, enquiries, fingerprint attendance (adapter + simulator until hardware known), dashboard/reports, reminders, RBAC, PWA.
 
 - Spec: `prompt.md` (amended Render-only Option A).

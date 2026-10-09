@@ -33,13 +33,20 @@ interface Member {
   memberNotes: { id: string; body: string; createdAt: string }[];
 }
 
-const err = "mt-1 text-xs text-red-300";
+const err = "field-err";
+
+function StatusBadge({ status }: { status: string }) {
+  if (status === "active") return <span className="badge-green">Active</span>;
+  if (status === "inactive") return <span className="badge-amber">Inactive</span>;
+  return <span className="badge">Archived</span>;
+}
 
 export default function MemberProfilePage({ params }: { params: { id: string } }) {
   const { id } = params;
   const { has } = useAuth();
   const queryClient = useQueryClient();
   const [msg, setMsg] = useState<string | null>(null);
+  const [msgOk, setMsgOk] = useState(false);
   const [note, setNote] = useState("");
 
   const member = useQuery({
@@ -58,11 +65,8 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(memberSchema) });
 
-  // Seed the form once the member loads (and after archive/restore refreshes it).
   const [seededFor, setSeededFor] = useState<string | null>(null);
-  const seedKey = member.data
-    ? `${member.data.id}:${member.data.updatedAt ?? member.data.status}`
-    : null;
+  const seedKey = member.data ? `${member.data.id}:${member.data.updatedAt}` : null;
   useEffect(() => {
     if (member.data && seededFor !== seedKey) {
       const m = member.data;
@@ -87,11 +91,15 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
     mutationFn: (values: FormValues) =>
       apiFetch(`/members/${id}`, { method: "PATCH", body: JSON.stringify(values) }),
     onSuccess: () => {
+      setMsgOk(true);
       setMsg("Saved.");
       queryClient.invalidateQueries({ queryKey: ["member", id] });
       queryClient.invalidateQueries({ queryKey: ["members"] });
     },
-    onError: (e) => setMsg(e instanceof ApiError ? e.message : "Save failed"),
+    onError: (e) => {
+      setMsgOk(false);
+      setMsg(e instanceof ApiError ? e.message : "Save failed");
+    },
   });
 
   const addNote = useMutation({
@@ -112,16 +120,19 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
     },
   });
 
-  if (member.isLoading) return <p className="text-sm text-stone-500">Loading…</p>;
+  if (member.isLoading) return <p className="text-sm text-stone-500">Loading member…</p>;
   if (member.error)
     return (
-      <div className="card">
-        <p className="text-sm text-red-300">
-          {member.error instanceof ApiError ? member.error.message : "Failed to load member"}
-        </p>
-        <Link href="/members" className="btn-ghost mt-3 inline-flex text-sm">
-          ← Members
-        </Link>
+      <div>
+        <h1 className="page-title">Member</h1>
+        <div className="card mt-4">
+          <p className="alert-error">
+            {member.error instanceof ApiError ? member.error.message : "Failed to load member"}
+          </p>
+          <Link href="/members" className="btn-ghost mt-3 inline-flex text-sm">
+            ← Members
+          </Link>
+        </div>
       </div>
     );
 
@@ -130,107 +141,135 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
 
   return (
     <div className="max-w-3xl space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <Link href="/members" className="text-sm text-stone-400 hover:text-stone-200">
+      <div className="flex flex-wrap items-center gap-2.5">
+        <Link href="/members" className="text-sm font-medium text-stone-500 hover:text-stone-800">
           ← Members
         </Link>
-        <h1 className="text-lg font-semibold">{m.fullName}</h1>
-        <span className="badge">{m.memberCode}</span>
-        <span className="badge">{m.status}</span>
+        <h1 className="page-title">{m.fullName}</h1>
+        <span className="badge-blue">{m.memberCode}</span>
+        <StatusBadge status={m.status} />
         {has("members.archive") && (
           <button
-            className="btn-ghost ml-auto px-2 py-1 text-xs"
+            className={archived ? "btn-ghost ml-auto text-sm" : "btn-danger ml-auto text-sm"}
             onClick={() => archive.mutate(archived ? "restore" : "archive")}
+            disabled={archive.isPending}
           >
-            {archived ? "Restore" : "Archive"}
+            {archived ? "Restore member" : "Archive member"}
           </button>
         )}
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="card !p-4">
+          <p className="section-title">Mobile</p>
+          <p className="mt-1 text-sm font-medium tabular-nums text-stone-900">{m.mobile}</p>
+        </div>
+        <div className="card !p-4">
+          <p className="section-title">Registered</p>
+          <p className="mt-1 text-sm font-medium text-stone-900">
+            {m.registrationDate.slice(0, 10)}
+          </p>
+        </div>
+        <div className="card !p-4">
+          <p className="section-title">Trainer</p>
+          <p className="mt-1 text-sm font-medium text-stone-900">
+            {m.assignedTrainer?.name ?? "—"}
+          </p>
+        </div>
+      </div>
+
       {has("members.update") ? (
-        <form
-          className="card grid gap-4 sm:grid-cols-2"
-          onSubmit={handleSubmit((v) => save.mutate(v))}
-        >
-          <div>
-            <label className="label">Full name *</label>
-            <input className="input" {...register("fullName")} />
-            {errors.fullName && <p className={err}>{errors.fullName.message}</p>}
+        <form className="card" onSubmit={handleSubmit((v) => save.mutate(v))}>
+          <h2 className="text-base font-semibold text-stone-900">Edit details</h2>
+          <p className="page-sub">Every change is saved against this profile and audited.</p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="label">Full name *</label>
+              <input className="input" {...register("fullName")} />
+              {errors.fullName && <p className={err}>{errors.fullName.message}</p>}
+            </div>
+            <div>
+              <label className="label">Mobile *</label>
+              <input className="input" {...register("mobile")} />
+              {errors.mobile && <p className={err}>{errors.mobile.message}</p>}
+            </div>
+            <div>
+              <label className="label">Gender *</label>
+              <select className="input" {...register("genderId")}>
+                {genders.data?.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Email</label>
+              <input className="input" type="email" {...register("email")} />
+            </div>
+            <div>
+              <label className="label">Date of birth</label>
+              <input className="input" type="date" {...register("dob")} />
+            </div>
+            <div>
+              <label className="label">Registration date</label>
+              <input className="input" type="date" {...register("registrationDate")} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Address</label>
+              <input className="input" {...register("address")} />
+            </div>
+            <div>
+              <label className="label">Emergency contact</label>
+              <input className="input" {...register("emergencyContact")} />
+            </div>
+            <div>
+              <label className="label">Device user ID</label>
+              <input
+                className="input"
+                {...register("deviceUserId")}
+                placeholder="Fingerprint device mapping"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Notes</label>
+              <textarea className="input" rows={2} {...register("notes")} />
+            </div>
           </div>
-          <div>
-            <label className="label">Mobile *</label>
-            <input className="input" {...register("mobile")} />
-            {errors.mobile && <p className={err}>{errors.mobile.message}</p>}
-          </div>
-          <div>
-            <label className="label">Gender *</label>
-            <select className="input" {...register("genderId")}>
-              {genders.data?.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label">Email</label>
-            <input className="input" type="email" {...register("email")} />
-          </div>
-          <div>
-            <label className="label">Date of birth</label>
-            <input className="input" type="date" {...register("dob")} />
-          </div>
-          <div>
-            <label className="label">Registration date</label>
-            <input className="input" type="date" {...register("registrationDate")} />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="label">Address</label>
-            <input className="input" {...register("address")} />
-          </div>
-          <div>
-            <label className="label">Emergency contact</label>
-            <input className="input" {...register("emergencyContact")} />
-          </div>
-          <div>
-            <label className="label">Source</label>
-            <input className="input" {...register("source")} />
-          </div>
-          <div>
-            <label className="label">Device user ID</label>
-            <input className="input" {...register("deviceUserId")} />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="label">Notes</label>
-            <textarea className="input" rows={2} {...register("notes")} />
-          </div>
-          {msg && <p className="text-sm text-stone-300 sm:col-span-2">{msg}</p>}
-          <div className="sm:col-span-2">
-            <button className="btn-primary" type="submit" disabled={isSubmitting || save.isPending}>
-              Save changes
-            </button>
-          </div>
+          {msg && <p className={msgOk ? "alert-ok mt-4" : "alert-error mt-4"}>{msg}</p>}
+          <button
+            className="btn-primary mt-4"
+            type="submit"
+            disabled={isSubmitting || save.isPending}
+          >
+            Save changes
+          </button>
         </form>
       ) : (
-        <div className="card text-sm text-stone-300">
+        <div className="card text-sm text-stone-600">
           {m.mobile} · {m.gender.name} · registered {m.registrationDate.slice(0, 10)}
         </div>
       )}
 
-      <div className="card space-y-3">
-        <h2 className="font-medium">Follow-up notes</h2>
-        {m.memberNotes.map((n) => (
-          <div key={n.id} className="rounded-lg border border-stone-800 p-3 text-sm">
-            <p>{n.body}</p>
-            <p className="mt-1 text-xs text-stone-500">
-              {n.createdAt.slice(0, 16).replace("T", " ")}
-            </p>
-          </div>
-        ))}
-        {m.memberNotes.length === 0 && <p className="text-sm text-stone-500">No notes yet.</p>}
+      <div className="card">
+        <h2 className="text-base font-semibold text-stone-900">Follow-up notes</h2>
+        <p className="page-sub">Dated history — newest first.</p>
+        <div className="mt-3 space-y-2.5">
+          {m.memberNotes.map((n) => (
+            <div key={n.id} className="rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm">
+              <p className="text-stone-800">{n.body}</p>
+              <p className="mt-1 text-xs tabular-nums text-stone-400">
+                {n.createdAt.slice(0, 16).replace("T", " ")}
+              </p>
+            </div>
+          ))}
+          {m.memberNotes.length === 0 && (
+            <p className="text-sm text-stone-500">No notes yet — add the first follow-up below.</p>
+          )}
+        </div>
         {has("members.update") && (
           <form
-            className="flex gap-2"
+            className="mt-3 flex gap-2"
             onSubmit={(e) => {
               e.preventDefault();
               if (note.trim()) addNote.mutate();
@@ -250,7 +289,7 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
       </div>
 
       <div className="card">
-        <h2 className="font-medium">History</h2>
+        <h2 className="text-base font-semibold text-stone-900">History</h2>
         <p className="mt-1 text-sm text-stone-500">
           Memberships, payments and attendance history appear here in Phases 4, 5 and 7 — every
           record is preserved and linked to this profile.

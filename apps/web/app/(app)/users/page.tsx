@@ -23,11 +23,15 @@ function Gate({ perm, children }: { perm: string; children: React.ReactNode }) {
   const { has } = useAuth();
   if (!has(perm))
     return (
-      <div className="card">
-        <h1 className="text-lg font-semibold">Not permitted</h1>
-        <p className="mt-1 text-sm text-stone-400">
-          Your account lacks the <code>{perm}</code> permission. Contact the owner.
-        </p>
+      <div>
+        <h1 className="page-title">Staff accounts</h1>
+        <div className="card mt-4">
+          <p className="font-medium text-stone-900">Not permitted</p>
+          <p className="mt-1 text-sm text-stone-500">
+            Your account lacks the <code className="rounded bg-stone-100 px-1">{perm}</code>{" "}
+            permission. Contact the owner.
+          </p>
+        </div>
       </div>
     );
   return <>{children}</>;
@@ -73,55 +77,76 @@ function StaffManager() {
 
   return (
     <div className="space-y-5">
-      <div className="card">
-        <h1 className="text-lg font-semibold">Staff accounts</h1>
-        {error && (
-          <p role="alert" className="mt-2 text-sm text-red-300">
-            {error}
-          </p>
-        )}
-        <div className="mt-3 overflow-x-auto">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Roles</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.data?.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.name}</td>
-                  <td className="text-stone-400">{u.email}</td>
-                  <td>{u.roles.map((r) => r.name).join(", ")}</td>
-                  <td>{u.isActive ? "active" : "disabled"}</td>
-                  <td>
-                    <button
-                      className="btn-ghost px-2 py-1 text-xs"
-                      onClick={() => toggle.mutate(u)}
-                    >
-                      {u.isActive ? "Disable" : "Enable"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {users.isLoading && <p className="py-4 text-sm text-stone-500">Loading…</p>}
-        </div>
+      <div>
+        <h1 className="page-title">Staff accounts</h1>
+        <p className="page-sub">Everyone who can sign in to this console, and their roles.</p>
       </div>
+
+      {error && (
+        <p role="alert" className="alert-error">
+          {error}
+        </p>
+      )}
+
+      <div className="table-card">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Roles</th>
+              <th>Status</th>
+              <th>
+                <span className="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.data?.map((u) => (
+              <tr key={u.id}>
+                <td className="font-medium text-stone-900">{u.name}</td>
+                <td className="text-stone-500">{u.email}</td>
+                <td>
+                  <span className="flex flex-wrap gap-1">
+                    {u.roles.map((r) => (
+                      <span key={r.id} className="badge">
+                        {r.name}
+                      </span>
+                    ))}
+                  </span>
+                </td>
+                <td>
+                  {u.isActive ? (
+                    <span className="badge-green">Active</span>
+                  ) : (
+                    <span className="badge">Disabled</span>
+                  )}
+                </td>
+                <td className="text-right">
+                  <button
+                    className="btn-ghost px-2.5 py-1 text-xs"
+                    onClick={() => toggle.mutate(u)}
+                  >
+                    {u.isActive ? "Disable" : "Enable"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {users.isLoading && <p className="p-4 text-sm text-stone-500">Loading staff…</p>}
+      </div>
+
       <form
-        className="card space-y-3"
+        className="card"
         onSubmit={(e) => {
           e.preventDefault();
           create.mutate();
         }}
       >
-        <h2 className="font-medium">Add staff member</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <h2 className="text-base font-semibold text-stone-900">Add staff member</h2>
+        <p className="page-sub">They sign in with this email and temporary password.</p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div>
             <label className="label">Name</label>
             <input
@@ -129,6 +154,7 @@ function StaffManager() {
               required
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="Priya Sharma"
             />
           </div>
           <div>
@@ -139,10 +165,11 @@ function StaffManager() {
               required
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
+              placeholder="priya@o2.fit"
             />
           </div>
           <div>
-            <label className="label">Temporary password (min 10 chars, letters + numbers)</label>
+            <label className="label">Temporary password</label>
             <input
               className="input"
               type="password"
@@ -150,16 +177,20 @@ function StaffManager() {
               minLength={10}
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
+              placeholder="Min 10 chars, letters + numbers"
             />
           </div>
           <fieldset>
             <legend className="label">Roles</legend>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 pt-1">
               {roles.data?.map((r: Role) => (
-                <label key={r.id} className="badge cursor-pointer gap-1">
+                <label
+                  key={r.id}
+                  className="badge cursor-pointer gap-1.5 !py-1.5 hover:border-brand-300"
+                >
                   <input
                     type="checkbox"
-                    className="accent-orange-500"
+                    className="h-3.5 w-3.5 accent-orange-600"
                     checked={form.roleIds.includes(r.id)}
                     onChange={(e) =>
                       setForm({
@@ -176,7 +207,7 @@ function StaffManager() {
             </div>
           </fieldset>
         </div>
-        <button className="btn-primary" type="submit" disabled={create.isPending}>
+        <button className="btn-primary mt-4" type="submit" disabled={create.isPending}>
           {create.isPending ? "Adding…" : "Add staff"}
         </button>
       </form>
