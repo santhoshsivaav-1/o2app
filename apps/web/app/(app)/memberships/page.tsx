@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiFetch } from "../../../lib/api";
-import { ValidityBadge, dateOnly, inr, type MembershipRow } from "../../../components/memberships";
+import { PtBadge, ValidityBadge, dateOnly, inr, type MembershipRow } from "../../../components/memberships";
 
 export default function MembershipsPage() {
   const [q, setQ] = useState("");
@@ -139,6 +139,7 @@ export default function MembershipsPage() {
               <th>Period</th>
               <th>Total</th>
               <th>Validity</th>
+              <th>PT</th>
             </tr>
           </thead>
           <tbody>
@@ -160,6 +161,9 @@ export default function MembershipsPage() {
                 <td className="font-medium tabular-nums">{inr(m.total)}</td>
                 <td>
                   <ValidityBadge validity={m.validity} />
+                </td>
+                <td>
+                  <PtBadge row={m} />
                 </td>
               </tr>
             ))}

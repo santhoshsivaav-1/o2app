@@ -5,10 +5,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { ApiError, apiFetch } from "../../../lib/api";
+import { ApiError, apiFetch, downloadFile } from "../../../lib/api";
 import { useAuth } from "../../../lib/auth";
 import {
   InvoiceStatusBadge,
+  PaymentTypeBadge,
   inr,
   methodLabel,
   type OpenInvoice,
@@ -88,9 +89,12 @@ function CollectTab() {
   const searchParams = useSearchParams();
   const [memberId, setMemberId] = useState(searchParams.get("memberId") ?? "");
   const [search, setSearch] = useState("");
+  const [paymentFor, setPaymentFor] = useState<"membership" | "pt">("membership");
   const [allocs, setAllocs] = useState<Record<string, number>>({});
+  const [ptAmount, setPtAmount] = useState(0);
   const [method, setMethod] = useState("cash");
   const [reference, setReference] = useState("");
+  const [notes, setNotes] = useState("");
   const [paidAt, setPaidAt] = useState(() => new Date().toISOString().slice(0, 10));
   const [error, setError] = useState<string | null>(null);
   const [doneId, setDoneId] = useState<string | null>(null);
@@ -126,6 +130,7 @@ function CollectTab() {
     [open.data],
   );
   const allocSum = Object.values(allocs).reduce((n, v) => n + (Number(v) || 0), 0);
+  const totalAmount = paymentFor === "pt" ? ptAmount : allocSum;
 
   const collect = useMutation({
     mutationFn: () =>
@@ -134,12 +139,17 @@ function CollectTab() {
         body: JSON.stringify({
           memberId,
           method,
-          amount: allocSum,
+          amount: totalAmount,
           paidAt,
+          type: paymentFor,
+          notes: notes || undefined,
           reference: reference || undefined,
-          allocations: Object.entries(allocs)
-            .filter(([, v]) => Number(v) > 0)
-            .map(([invoiceId, amount]) => ({ invoiceId, amount: Number(amount) })),
+          allocations:
+            paymentFor === "membership"
+              ? Object.entries(allocs)
+                  .filter(([, v]) => Number(v) > 0)
+                  .map(([invoiceId, amount]) => ({ invoiceId, amount: Number(amount) }))
+              : undefined,
           idempotencyKey: crypto.randomUUID(),
         }),
       }),
@@ -207,6 +217,42 @@ function CollectTab() {
 
       {memberId && (
         <div className="card">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="section-title">Payment for</h2>
+            <select
+              className="input w-64"
+              value={paymentFor}
+              onChange={(e) => {
+                setPaymentFor(e.target.value as "membership" | "pt");
+                setDoneId(null);
+              }}
+            >
+              <option value="membership">Membership invoice</option>
+              <option value="pt">Personal training (PT) fee</option>
+            </select>
+          </div>
+          {paymentFor === "pt" && (
+            <div className="mt-3">
+              <label className="label">PT amount *</label>
+              <input
+                className="input w-40"
+                type="number"
+                min={0.01}
+                step="0.01"
+                value={ptAmount || ""}
+                onChange={(e) => setPtAmount(Number(e.target.value))}
+              />
+              <p className="hint mt-1">
+                Tracked on the member's PT package — PT payments never touch membership invoices
+                and create no credit.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {memberId && paymentFor === "membership" && (
+        <div className="card">
           <h2 className="section-title">Open invoices</h2>
           {open.isLoading && <p className="mt-2 text-sm text-stone-500">Loading…</p>}
           {openInvoices.length === 0 && !open.isLoading && (
@@ -266,6 +312,15 @@ function CollectTab() {
               />
             </div>
             <div>
+              <label className="label">Note (optional)</label>
+              <input
+                className="input"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="e.g. PT month 3 balance"
+              />
+            </div>
+            <div>
               <label className="label">Paid on</label>
               <input
                 className="input"
@@ -293,10 +348,10 @@ function CollectTab() {
             </p>
           )}
           <div className="mt-4 flex items-center gap-3 border-t border-stone-100 pt-4">
-            <p className="text-lg font-bold tabular-nums">Total {inr(allocSum)}</p>
+            <p className="text-lg font-bold tabular-nums">Total {inr(totalAmount)}</p>
             <button
               className="btn-primary ml-auto"
-              disabled={allocSum <= 0 || collect.isPending}
+              disabled={totalAmount <= 0 || collect.isPending}
               onClick={() => {
                 setError(null);
                 setDoneId(null);
@@ -316,11 +371,13 @@ function CollectTab() {
 
 function PaymentsTab() {
   const [method, setMethod] = useState("");
+  const [type, setType] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
   const params = new URLSearchParams({ page: String(page), limit: "20" });
   if (method) params.set("method", method);
+  if (type) params.set("type", type);
   if (from) params.set("from", from);
   if (to) params.set("to", to);
   const list = useQuery({
@@ -358,6 +415,21 @@ function PaymentsTab() {
           </select>
         </div>
         <div>
+          <label className="label">Kind</label>
+          <select
+            className="input"
+            value={type}
+            onChange={(e) => {
+              setType(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">All kinds</option>
+            <option value="membership">Membership</option>
+            <option value="pt">PT</option>
+          </select>
+        </div>
+        <div>
           <label className="label">From</label>
           <input
             className="input"
@@ -390,6 +462,7 @@ function PaymentsTab() {
           <thead>
             <tr>
               <th>Member</th>
+              <th>Kind</th>
               <th>Method</th>
               <th>Amount</th>
               <th>Paid on</th>
@@ -408,7 +481,13 @@ function PaymentsTab() {
                   </Link>
                   <p className="text-xs text-stone-500">{p.member.memberCode}</p>
                 </td>
-                <td>{methodLabel(p.method)}</td>
+                <td>
+                  <PaymentTypeBadge type={p.type} />
+                </td>
+                <td>
+                  {methodLabel(p.method)}
+                  <p className="text-xs text-stone-500">{p.notes ?? ""}</p>
+                </td>
                 <td className="font-medium tabular-nums">{inr(p.amount)}</td>
                 <td className="tabular-nums text-stone-500">{p.paidAt.slice(0, 10)}</td>
                 <td>
@@ -508,6 +587,7 @@ function InvoicesTab() {
               <th>Paid</th>
               <th>Outstanding</th>
               <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -527,6 +607,19 @@ function InvoicesTab() {
                 <td className="font-medium tabular-nums">{inr(inv.outstanding)}</td>
                 <td>
                   <InvoiceStatusBadge status={inv.status} />
+                </td>
+                <td>
+                  <button
+                    className="btn-ghost px-2 py-0.5 text-xs"
+                    onClick={() =>
+                      downloadFile(`/invoices/${inv.id}/pdf`, `${inv.invoiceNo}.pdf`).catch((e) =>
+                        window.alert(e instanceof Error ? e.message : "PDF download failed"),
+                      )
+                    }
+                    title="Download invoice PDF"
+                  >
+                    PDF
+                  </button>
                 </td>
               </tr>
             ))}

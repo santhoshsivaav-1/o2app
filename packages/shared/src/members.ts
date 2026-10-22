@@ -168,6 +168,34 @@ export function membershipValidity(
 export const memberStatusSchema = z.enum(["active", "inactive", "archived"]);
 export type MemberStatus = z.infer<typeof memberStatusSchema>;
 
+export const EMERGENCY_RELATIONSHIPS = [
+  { key: "parent", label: "Parent" },
+  { key: "spouse", label: "Spouse" },
+  { key: "sibling", label: "Sibling" },
+  { key: "child", label: "Child" },
+  { key: "friend", label: "Friend" },
+  { key: "guardian", label: "Guardian" },
+  { key: "other", label: "Other" },
+] as const;
+export type EmergencyRelationship = (typeof EMERGENCY_RELATIONSHIPS)[number]["key"];
+
+export function emergencyRelationshipLabel(key: string | null | undefined): string {
+  if (!key) return "";
+  return EMERGENCY_RELATIONSHIPS.find((r) => r.key === key)?.label ?? key;
+}
+
+/** PT validity: ptStart + months (whole months after the PT start date). */
+export function ptEndDate(ptStart: string | null | undefined, months: number | null | undefined): string | null {
+  if (!ptStart || !months || months < 1) return null;
+  const d = new Date(ptStart + "T00:00:00Z");
+  if (Number.isNaN(d.getTime())) return null;
+  d.setUTCMonth(d.getUTCMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Client-side image resize → JPEG data URL (keeps DB payloads small like the reference app). */
+export const PHOTO_RESIZE_MAX_EDGE = 320;
+
 export const memberSchema = z.object({
   fullName: z.string().trim().min(1, "Full name is required").max(120),
   mobile: z
@@ -185,12 +213,36 @@ export const memberSchema = z.object({
     .optional()
     .or(z.literal("")),
   address: z.string().trim().max(500).optional().or(z.literal("")),
-  emergencyContact: z.string().trim().max(120).optional().or(z.literal("")),
+  emergName: z.string().trim().max(120).optional().or(z.literal("")),
+  emergMobile: z
+    .string()
+    .trim()
+    .max(17)
+    .refine((v) => v === "" || normalizeMobile(v).length >= 10, "Emergency mobile must have 10 digits")
+    .optional()
+    .or(z.literal("")),
+  emergAddress: z.string().trim().max(500).optional().or(z.literal("")),
+  emergRelationship: z
+    .string()
+    .trim()
+    .max(40)
+    .refine((v) => v === "" || EMERGENCY_RELATIONSHIPS.some((r) => r.key === v), "Select a valid relationship")
+    .optional()
+    .or(z.literal("")),
   registrationDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Registration date must be YYYY-MM-DD")
     .optional(),
-  photoUrl: z.string().trim().max(500).optional().or(z.literal("")),
+  photoUrl: z
+    .string()
+    .trim()
+    .max(400_000, "Photo is too large — use a smaller image")
+    .refine(
+      (v) => v === "" || /^data:image\/(png|jpeg|webp);base64,/.test(v),
+      "Photo must be a PNG, JPEG or WebP data URL",
+    )
+    .optional()
+    .or(z.literal("")),
   notes: z.string().trim().max(2000).optional().or(z.literal("")),
   status: memberStatusSchema.optional(),
   source: z.string().trim().max(80).optional().or(z.literal("")),

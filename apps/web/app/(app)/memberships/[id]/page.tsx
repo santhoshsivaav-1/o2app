@@ -23,6 +23,11 @@ interface Detail {
   notes: string | null;
   suspensionDays: number;
   cancelReason: string | null;
+  ptTotal: string;
+  ptDurationMonths: number | null;
+  ptStart: string | null;
+  ptTrainer: { id: string; name: string } | null;
+  ptEnd: string | null;
   member: { id: string; memberCode: string; fullName: string; mobile: string };
   package: {
     id: string;
@@ -62,6 +67,10 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
   const [renewPkg, setRenewPkg] = useState("");
   const [renewStart, setRenewStart] = useState("");
   const [renewDiscount, setRenewDiscount] = useState(0);
+  const [renewPtTotal, setRenewPtTotal] = useState(0);
+  const [renewPtMonths, setRenewPtMonths] = useState(0);
+  const [renewPtStart, setRenewPtStart] = useState("");
+  const [renewPtTrainer, setRenewPtTrainer] = useState("");
   const [extendDays, setExtendDays] = useState(30);
   const [cancelReason, setCancelReason] = useState("");
 
@@ -72,6 +81,10 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
   const packages = useQuery({
     queryKey: ["packages-sale"],
     queryFn: () => apiFetch<{ id: string; name: string }[]>("/packages"),
+  });
+  const trainers = useQuery({
+    queryKey: ["trainer-options"],
+    queryFn: () => apiFetch<{ id: string; name: string }[]>("/members/trainer-options"),
   });
 
   function refresh(okMsg: string) {
@@ -94,6 +107,10 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
           packageId: renewPkg || undefined,
           startDate: renewStart || undefined,
           discountPct: renewDiscount,
+          ptTotal: renewPtTotal || undefined,
+          ptDurationMonths: renewPtTotal ? renewPtMonths || undefined : undefined,
+          ptStart: renewPtTotal ? renewPtStart || undefined : undefined,
+          ptTrainerId: renewPtTotal && renewPtTrainer ? renewPtTrainer : undefined,
           idempotencyKey: crypto.randomUUID(),
         }),
       }),
@@ -184,6 +201,37 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
           </p>
         </div>
       </div>
+
+      {Number(m.ptTotal) > 0 && (
+        <div className="card border-l-4 border-l-brand-600">
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-semibold text-stone-900">Personal training</h2>
+            <span className="badge-blue">PT · {Number(m.ptTotal).toLocaleString("en-IN")}</span>
+          </div>
+          <div className="mt-2 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+            <p>
+              <span className="text-stone-500">Trainer </span>
+              <span className="font-medium">{m.ptTrainer?.name ?? "—"}</span>
+            </p>
+            <p>
+              <span className="text-stone-500">Duration </span>
+              <span className="font-medium">{m.ptDurationMonths ?? "—"} month(s)</span>
+            </p>
+            <p>
+              <span className="text-stone-500">Valid until </span>
+              <span className="tabular-nums">{m.ptEnd ? dateOnly(m.ptEnd) : "—"}</span>
+            </p>
+            <p>
+              <span className="text-stone-500">Started </span>
+              <span className="tabular-nums">{m.ptStart ? dateOnly(m.ptStart) : "—"}</span>
+            </p>
+          </div>
+          <p className="hint mt-2">
+            PT fee is paid separately from this membership invoice — collect it under Billing →
+            "Payment for: Personal training".
+          </p>
+        </div>
+      )}
 
       <div className="card">
         <h2 className="text-base font-semibold text-stone-900">Invoice {m.invoice?.invoiceNo}</h2>
@@ -296,6 +344,61 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
                   onChange={(e) => setRenewDiscount(Number(e.target.value))}
                 />
               </div>
+              <div>
+                <label className="label">PT amount (₹, optional)</label>
+                <input
+                  className="input"
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={renewPtTotal || ""}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setRenewPtTotal(v);
+                    if (v <= 0) setRenewPtMonths(0);
+                    else if (!renewPtMonths) setRenewPtMonths(1);
+                  }}
+                />
+              </div>
+              {renewPtTotal > 0 && (
+                <>
+                  <div>
+                    <label className="label">PT duration (months) *</label>
+                    <input
+                      className="input"
+                      type="number"
+                      min={1}
+                      max={36}
+                      value={renewPtMonths || ""}
+                      onChange={(e) => setRenewPtMonths(Number(e.target.value))}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">PT start</label>
+                    <input
+                      className="input"
+                      type="date"
+                      value={renewPtStart}
+                      onChange={(e) => setRenewPtStart(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">PT trainer</label>
+                    <select
+                      className="input"
+                      value={renewPtTrainer}
+                      onChange={(e) => setRenewPtTrainer(e.target.value)}
+                    >
+                      <option value="">Select staff…</option>
+                      {(trainers.data ?? []).map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
               <div className="flex items-end sm:col-span-4">
                 <button
                   className="btn-primary text-sm"

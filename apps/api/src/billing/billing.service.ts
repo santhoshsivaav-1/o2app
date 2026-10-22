@@ -76,6 +76,10 @@ export class BillingService {
     if (!method) throw new BadRequestException(`Unknown payment method: ${dto.method}`);
     if (method.needsReference && !dto.reference?.trim())
       throw new BadRequestException(`${method.label} requires a transaction reference`);
+    // PT payments are standalone trainer/PT fees — never allocated to invoices.
+    const paymentType = dto.type && dto.type === "pt" ? "pt" : "membership";
+    if (paymentType === "pt" && dto.allocations?.length)
+      throw new BadRequestException("PT payments cannot be allocated to invoices");
     const member = await this.prisma.member.findUnique({ where: { id: dto.memberId } });
     if (!member) throw new NotFoundException("Member not found");
     const amount = round2(dto.amount);
@@ -119,6 +123,8 @@ export class BillingService {
             method: method.key,
             amount,
             paidAt,
+            type: paymentType,
+            notes: dto.notes?.trim() || null,
             reference: dto.reference?.trim() || null,
             verified: false, // manually recorded — never gateway-confirmed
             idempotencyKey: dto.idempotencyKey,
@@ -137,7 +143,7 @@ export class BillingService {
         for (const v of validated) await this.refreshInvoiceStatus(tx, v.invoiceId);
         const remainder = round2(amount - allocSum);
         let credit = null;
-        if (remainder > 0) {
+        if (remainder > 0 && paymentType === "membership") {
           credit = await tx.creditAdjustment.create({
             data: {
               memberId: member.id,
@@ -191,6 +197,7 @@ export class BillingService {
     const where: Record<string, unknown> = {};
     if (query.memberId) where.memberId = query.memberId;
     if (query.method) where.method = query.method;
+    if (query.type) where.type = query.type;
     if (query.from || query.to) {
       where.paidAt = {
         gte: query.from ? new Date(query.from + "T00:00:00Z") : undefined,
@@ -261,8 +268,37 @@ export class BillingService {
     const inv = await this.prisma.invoice.findUnique({
       where: { id },
       include: {
-        member: { select: { id: true, memberCode: true, fullName: true, mobile: true } },
-        membership: { select: { id: true, startDate: true, endDate: true, status: true } },
+        member: {
+          select: {
+            id: true,
+            memberCode: true,
+            fullName: true,
+            mobile: true,
+            email: true,
+            dob: true,
+            address: true,
+            photoUrl: true,
+            gender: { select: { name: true } },
+            assignedTrainer: { select: { name: true } },
+            emergName: true,
+            emergRelationship: true,
+            emergMobile: true,
+            emergAddress: true,
+          },
+        },
+        membership: {
+          select: {
+            id: true,
+            startDate: true,
+            endDate: true,
+            status: true,
+            package: { select: { name: true } },
+            ptTotal: true,
+            ptDurationMonths: true,
+            ptStart: true,
+            ptTrainer: { select: { name: true } },
+          },
+        },
         items: true,
         allocations: {
           include: {
@@ -429,6 +465,7 @@ export class BillingService {
       [
         (p.member as Record<string, unknown>).memberCode,
         (p.member as Record<string, unknown>).fullName,
+        (p.type as string) ?? "membership",
         p.method,
         p.amount,
         (p.paidAt as Date).toISOString(),
@@ -438,9 +475,10 @@ export class BillingService {
         .map((v) => this.esc(v))
         .join(","),
     );
-    return ["member_code,member_name,method,amount,paid_at,reference,verification", ...rows].join(
-      "\n",
-    );
+    return [
+      "member_code,member_name,type,method,amount,paid_at,reference,verification",
+      ...rows,
+    ].join("\n");
   }
 
   async exportInvoices(query: InvoiceListQuery) {

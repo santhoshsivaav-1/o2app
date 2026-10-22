@@ -1,13 +1,20 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { memberSchema } from "@o2app/shared";
+import {
+  EMERGENCY_RELATIONSHIPS,
+  diffDays,
+  emergencyRelationshipLabel,
+  memberSchema,
+  membershipValidity,
+  ptEndDate,
+} from "@o2app/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
-import { ApiError, apiFetch } from "../../../../lib/api";
+import { ApiError, apiFetch, downloadFile } from "../../../../lib/api";
 import { useAuth } from "../../../../lib/auth";
 import {
   ValidityBadge,
@@ -15,6 +22,7 @@ import {
   inr,
   type MembershipRow,
 } from "../../../../components/memberships";
+import { MemberPhoto } from "../../../../components/MemberPhoto";
 import { InvoiceStatusBadge } from "../../../../components/billing";
 import { SourceBadge } from "../../../../components/attendance";
 
@@ -113,6 +121,16 @@ function MemberInvoices({ memberId }: { memberId: string }) {
           <span className="ml-auto flex items-center gap-2">
             <span className="text-xs font-medium tabular-nums">due {inr(inv.outstanding)}</span>
             <InvoiceStatusBadge status={inv.status} />
+            <button
+              className="btn-ghost px-2 py-0.5 text-xs"
+              onClick={() =>
+                downloadFile(`/invoices/${inv.id}/pdf`, `${inv.invoiceNo}.pdf`).catch((e) =>
+                  window.alert(e instanceof Error ? e.message : "PDF download failed"),
+                )
+              }
+            >
+              PDF
+            </button>
           </span>
         </li>
       ))}
@@ -130,7 +148,10 @@ interface Member {
   email: string | null;
   dob: string | null;
   address: string | null;
-  emergencyContact: string | null;
+  emergName: string | null;
+  emergMobile: string | null;
+  emergAddress: string | null;
+  emergRelationship: string | null;
   registrationDate: string;
   photoUrl: string | null;
   notes: string | null;
@@ -141,6 +162,26 @@ interface Member {
   gender: { id: string; name: string };
   assignedTrainer: { id: string; name: string } | null;
   memberNotes: { id: string; body: string; createdAt: string }[];
+  memberships?: {
+    id: string;
+    startDate: string;
+    endDate: string;
+    status: string;
+    total: string;
+    ptTotal: string;
+    ptDurationMonths: number | null;
+    ptStart: string | null;
+    ptTrainer: { id: string; name: string } | null;
+    package: { id: string; name: string };
+  }[];
+  payments?: {
+    id: string;
+    type: string;
+    method: string;
+    amount: string;
+    paidAt: string;
+    reference: string | null;
+  }[];
 }
 
 const err = "field-err";
@@ -188,6 +229,82 @@ function StatusBadge({ status }: { status: string }) {
   return <span className="badge">Archived</span>;
 }
 
+/** Latest plan + PT progress, mirroring the reference app's member-details modal. */
+function PlanCard({
+  current,
+  ptPaid,
+  ptEnd,
+}: {
+  current: NonNullable<Member["memberships"]>[number];
+  ptPaid: number;
+  ptEnd: string | null;
+}) {
+  const start = current.startDate.slice(0, 10);
+  const end = current.endDate.slice(0, 10);
+  const validity = membershipValidity(
+    start,
+    end,
+    new Date().toISOString().slice(0, 10),
+    current.status as "active" | "suspended" | "cancelled",
+  );
+  const daysLeft = diffDays(new Date().toISOString().slice(0, 10), end);
+  const ptTotal = Number(current.ptTotal ?? 0);
+  const hasPt = ptTotal > 0;
+  return (
+    <div className="card">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-base font-semibold text-stone-900">Current plan</h2>
+        <span className="badge">{current.package.name}</span>
+        <span className="ml-auto">
+          <ValidityBadge validity={validity} />
+          {validity === "active" && (
+            <span className="ml-2 text-xs text-stone-500">
+              {daysLeft >= 0 ? `${daysLeft} day(s) remaining` : `expired ${Math.abs(daysLeft)} day(s) ago`}
+            </span>
+          )}
+        </span>
+      </div>
+      <p className="mt-2 text-sm tabular-nums text-stone-500">
+        {dateOnly(current.startDate)} → {dateOnly(current.endDate)} · plan {inr(current.total)}
+      </p>
+      <Link href={`/memberships/${current.id}`} className="link mt-1 inline-block text-sm">
+        Open membership →
+      </Link>
+      {hasPt && (
+        <div className="mt-3 rounded-lg border border-stone-200 bg-brand-50/50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">
+            Personal training
+          </p>
+          <div className="mt-1.5 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+            <p>
+              <span className="text-stone-500">Trainer </span>
+              <span className="font-medium">{current.ptTrainer?.name ?? "—"}</span>
+            </p>
+            <p>
+              <span className="text-stone-500">Duration </span>
+              <span className="font-medium">{current.ptDurationMonths ?? "—"} month(s)</span>
+            </p>
+            <p>
+              <span className="text-stone-500">Period </span>
+              <span className="tabular-nums">
+                {current.ptStart ? dateOnly(current.ptStart) : "—"} → {ptEnd ? dateOnly(ptEnd) : "—"}
+              </span>
+            </p>
+            <p>
+              <span className="text-stone-500">Paid </span>
+              <span className="tabular-nums">{inr(ptPaid)}</span>
+              <span className="text-stone-500"> of {inr(ptTotal)}</span>
+              <span className="ml-2 font-medium tabular-nums">
+                {inr(Math.max(0, ptTotal - ptPaid))} due
+              </span>
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MemberProfilePage({ params }: { params: { id: string } }) {
   const { id } = params;
   const { has } = useAuth();
@@ -214,9 +331,11 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
 
   const [seededFor, setSeededFor] = useState<string | null>(null);
   const seedKey = member.data ? `${member.data.id}:${member.data.updatedAt}` : null;
+  const [photoPad, setPhotoPad] = useState<string>("");
   useEffect(() => {
     if (member.data && seededFor !== seedKey) {
       const m = member.data;
+      setPhotoPad(m.photoUrl ?? "");
       reset({
         fullName: m.fullName,
         mobile: m.mobile,
@@ -224,7 +343,11 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
         genderId: m.gender.id,
         dob: m.dob ? m.dob.slice(0, 10) : "",
         address: m.address ?? "",
-        emergencyContact: m.emergencyContact ?? "",
+        emergName: m.emergName ?? "",
+        emergMobile: m.emergMobile ?? "",
+        emergAddress: m.emergAddress ?? "",
+        emergRelationship: m.emergRelationship ?? "",
+        assignedTrainerId: m.assignedTrainer?.id ?? "",
         registrationDate: m.registrationDate.slice(0, 10),
         notes: m.notes ?? "",
         source: m.source ?? "",
@@ -233,6 +356,32 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
       setSeededFor(seedKey);
     }
   }, [member.data, seededFor, seedKey, reset]);
+
+  const trainers = useQuery({
+    queryKey: ["trainer-options"],
+    queryFn: () => apiFetch<{ id: string; name: string }[]>("/members/trainer-options"),
+    enabled: has("members.update"),
+  });
+
+  const photoSave = useMutation({
+    mutationFn: (photoUrl: string) =>
+      apiFetch(`/members/${id}/photo`, { method: "POST", body: JSON.stringify({ photoUrl }) }),
+    onSuccess: () => {
+      setMsgOk(true);
+      setMsg("Photo updated.");
+      queryClient.invalidateQueries({ queryKey: ["member", id] });
+      queryClient.invalidateQueries({ queryKey: ["members"] });
+    },
+    onError: (e) => {
+      setMsgOk(false);
+      setMsg(e instanceof ApiError ? e.message : "Photo update failed");
+    },
+  });
+
+  const profilePdf = useMutation({
+    mutationFn: () => downloadFile(`/members/${id}/pdf`, `${member.data?.memberCode ?? "member"}-profile.pdf`),
+    onError: (e) => window.alert(e instanceof Error ? e.message : "PDF download failed"),
+  });
 
   const save = useMutation({
     mutationFn: (values: FormValues) =>
@@ -285,6 +434,10 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
 
   const m = member.data!;
   const archived = m.status === "archived";
+  const current = m.memberships?.[0];
+  const ptEnd = current
+    ? ptEndDate(current.ptStart ? current.ptStart.slice(0, 10) : null, current.ptDurationMonths)
+    : null;
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -292,18 +445,35 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
         <Link href="/members" className="text-sm font-medium text-stone-500 hover:text-stone-800">
           ← Members
         </Link>
+        {m.photoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={m.photoUrl}
+            alt=""
+            className="h-10 w-10 rounded-full border border-stone-200 object-cover"
+          />
+        )}
         <h1 className="page-title">{m.fullName}</h1>
         <span className="badge-blue">{m.memberCode}</span>
         <StatusBadge status={m.status} />
-        {has("members.archive") && (
+        <span className="ml-auto flex gap-2">
           <button
-            className={archived ? "btn-ghost ml-auto text-sm" : "btn-danger ml-auto text-sm"}
-            onClick={() => archive.mutate(archived ? "restore" : "archive")}
-            disabled={archive.isPending}
+            className="btn-ghost text-sm"
+            onClick={() => profilePdf.mutate()}
+            disabled={profilePdf.isPending}
           >
-            {archived ? "Restore member" : "Archive member"}
+            {profilePdf.isPending ? "Preparing…" : "Profile PDF"}
           </button>
-        )}
+          {has("members.archive") && (
+            <button
+              className={archived ? "btn-ghost text-sm" : "btn-danger text-sm"}
+              onClick={() => archive.mutate(archived ? "restore" : "archive")}
+              disabled={archive.isPending}
+            >
+              {archived ? "Restore member" : "Archive member"}
+            </button>
+          )}
+        </span>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -323,6 +493,44 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
             {m.assignedTrainer?.name ?? "—"}
           </p>
         </div>
+      </div>
+
+      {current && (
+        <PlanCard
+          current={current}
+          ptPaid={m.payments?.reduce((n, p) => (p.type === "pt" ? n + Number(p.amount) : n), 0) ?? 0}
+          ptEnd={ptEnd}
+        />
+      )}
+
+      <div className="card">
+        <h2 className="text-base font-semibold text-stone-900">Emergency contact</h2>
+        {m.emergName || m.emergMobile ? (
+          <div className="mt-2 grid gap-3 text-sm sm:grid-cols-2">
+            <p>
+              <span className="text-stone-500">Name </span>
+              <span className="font-medium">{m.emergName}</span>
+              {m.emergRelationship && (
+                <span className="text-stone-500">
+                  {" "}
+                  · {emergencyRelationshipLabel(m.emergRelationship)}
+                </span>
+              )}
+            </p>
+            <p>
+              <span className="text-stone-500">Mobile </span>
+              <span className="font-medium tabular-nums">{m.emergMobile ?? "—"}</span>
+            </p>
+            {m.emergAddress && (
+              <p className="sm:col-span-2">
+                <span className="text-stone-500">Address </span>
+                <span>{m.emergAddress}</span>
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="mt-1 text-sm text-stone-500">Not recorded yet.</p>
+        )}
       </div>
 
       {has("members.update") ? (
@@ -367,8 +575,15 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
               <input className="input" {...register("address")} />
             </div>
             <div>
-              <label className="label">Emergency contact</label>
-              <input className="input" {...register("emergencyContact")} />
+              <label className="label">Trainer</label>
+              <select className="input" {...register("assignedTrainerId")} defaultValue="">
+                <option value="">None assigned</option>
+                {trainers.data?.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="label">Device user ID</label>
@@ -379,8 +594,48 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
               />
             </div>
             <div className="sm:col-span-2">
+              <MemberPhoto
+                value={photoPad}
+                onChange={(v) => {
+                  setPhotoPad(v);
+                  photoSave.mutate(v);
+                }}
+                disabled={photoSave.isPending}
+              />
+            </div>
+            <div className="sm:col-span-2">
               <label className="label">Notes</label>
               <textarea className="input" rows={2} {...register("notes")} />
+            </div>
+          </div>
+
+          <h3 className="section-title mt-6">Emergency contact</h3>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="label">Name</label>
+              <input className="input" {...register("emergName")} />
+              {errors.emergName && <p className={err}>{errors.emergName.message}</p>}
+            </div>
+            <div>
+              <label className="label">Relationship</label>
+              <select className="input" {...register("emergRelationship")} defaultValue="">
+                <option value="">Select…</option>
+                {EMERGENCY_RELATIONSHIPS.map((r) => (
+                  <option key={r.key} value={r.key}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+              {errors.emergRelationship && <p className={err}>{errors.emergRelationship.message}</p>}
+            </div>
+            <div>
+              <label className="label">Mobile</label>
+              <input className="input" {...register("emergMobile")} />
+              {errors.emergMobile && <p className={err}>{errors.emergMobile.message}</p>}
+            </div>
+            <div>
+              <label className="label">Address</label>
+              <input className="input" {...register("emergAddress")} />
             </div>
           </div>
           {msg && <p className={msgOk ? "alert-ok mt-4" : "alert-error mt-4"}>{msg}</p>}

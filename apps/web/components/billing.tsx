@@ -33,7 +33,14 @@ export interface PaymentRow {
   paidAt: string;
   reference: string | null;
   verified: boolean;
+  type?: string;
+  notes?: string | null;
   member: { id: string; memberCode: string; fullName: string };
+}
+
+export function PaymentTypeBadge({ type }: { type?: string }) {
+  if (type === "pt") return <span className="badge-blue">PT</span>;
+  return <span className="badge">Membership</span>;
 }
 
 export function inr(n: string | number): string {

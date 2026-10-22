@@ -51,3 +51,35 @@ export interface SessionUser {
   roles: { id: string; name: string }[];
   permissions: string[];
 }
+
+/** Fetch a binary (CSV/PDF) endpoint and trigger a browser download. */
+export async function downloadFile(path: string, filename: string): Promise<void> {
+  const res = await fetch(BASE + path, { credentials: "include" });
+  if (!res.ok) throw new ApiError(res.status, `Download failed (${res.status})`);
+  const blob = await res.blob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+const PHOTO_RESIZE_MAX_EDGE = 320;
+
+/** Downscale a picked image to a small JPEG data URL so member photos stay DB-friendly. */
+export async function fileToPhotoDataUrl(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(
+    1,
+    PHOTO_RESIZE_MAX_EDGE / Math.max(bitmap.width, bitmap.height),
+  );
+  const w = Math.max(1, Math.round(bitmap.width * scale));
+  const h = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser");
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", 0.82);
+}

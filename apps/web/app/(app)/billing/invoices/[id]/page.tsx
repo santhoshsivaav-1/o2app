@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { apiFetch } from "../../../../../lib/api";
+import { apiFetch, downloadFile } from "../../../../../lib/api";
 import { InvoiceStatusBadge, inr, methodLabel } from "../../../../../components/billing";
 
 interface InvoiceDetail {
@@ -63,6 +63,17 @@ export default function InvoiceDetailPage({ params }: { params: { id: string } }
           Record payment
         </Link>
       </div>
+
+      <button
+        className="btn-ghost w-full text-sm"
+        onClick={() =>
+          downloadFile(`/invoices/${d.id}/pdf`, `${d.invoiceNo}.pdf`).catch((e) =>
+            window.alert(e instanceof Error ? e.message : "PDF download failed"),
+          )
+        }
+      >
+        Download invoice PDF
+      </button>
 
       <div className="card">
         <div className="flex flex-wrap gap-x-8 gap-y-1 text-sm">

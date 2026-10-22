@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { apiFetch } from "../../../lib/api";
+import { apiFetch, downloadFile } from "../../../lib/api";
 import { useAuth } from "../../../lib/auth";
+import { PtBadge } from "../../../components/memberships";
 
 interface Gender {
   id: string;
@@ -17,9 +18,17 @@ interface MemberRow {
   fullName: string;
   mobile: string;
   email: string | null;
+  emergName: string | null;
   status: string;
   registrationDate: string;
   gender: Gender;
+  assignedTrainer?: { id: string; name: string } | null;
+  memberships?: {
+    startDate: string;
+    endDate: string;
+    status: string;
+    ptTotal: string;
+  }[];
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -35,6 +44,8 @@ export default function MembersPage() {
   const [genderId, setGenderId] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [expiringFrom, setExpiringFrom] = useState("");
+  const [expiringTo, setExpiringTo] = useState("");
   const [page, setPage] = useState(1);
 
   const genders = useQuery({
@@ -48,6 +59,8 @@ export default function MembersPage() {
   if (genderId) params.set("genderId", genderId);
   if (from) params.set("registeredFrom", from);
   if (to) params.set("registeredTo", to);
+  if (expiringFrom) params.set("expiringFrom", expiringFrom);
+  if (expiringTo) params.set("expiringTo", expiringTo);
   params.set("page", String(page));
   params.set("limit", "20");
 
@@ -74,6 +87,12 @@ export default function MembersPage() {
 
   const total = members.data?.meta.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / 20));
+
+  const pdf = useMutation({
+    mutationFn: (m: MemberRow) =>
+      downloadFile(`/members/${m.id}/pdf`, `${m.memberCode}-profile.pdf`),
+    onError: (e) => window.alert(e instanceof Error ? e.message : "PDF download failed"),
+  });
 
   return (
     <div className="space-y-4">
@@ -186,6 +205,37 @@ export default function MembersPage() {
             }}
           />
         </div>
+        <div>
+          <label className="label" htmlFor="mexpfrom">
+            Expiring from
+          </label>
+          <input
+            id="mexpfrom"
+            className="input"
+            type="date"
+            value={expiringFrom}
+            onChange={(e) => {
+              setExpiringFrom(e.target.value);
+              setPage(1);
+            }}
+          />
+          <p className="hint">Current-membership end date</p>
+        </div>
+        <div>
+          <label className="label" htmlFor="mexpto">
+            Expiring to
+          </label>
+          <input
+            id="mexpto"
+            className="input"
+            type="date"
+            value={expiringTo}
+            onChange={(e) => {
+              setExpiringTo(e.target.value);
+              setPage(1);
+            }}
+          />
+        </div>
         <div className="flex items-end sm:col-span-2 lg:col-span-2">
           <button className="btn-primary text-sm" type="submit">
             Apply filters
@@ -193,7 +243,7 @@ export default function MembersPage() {
         </div>
       </form>
 
-      <div className="table-card">
+      <div className="table-card overflow-x-auto">
         <table className="table">
           <thead>
             <tr>
@@ -203,32 +253,66 @@ export default function MembersPage() {
               <th>Gender</th>
               <th>Status</th>
               <th>Registered</th>
+              <th>Membership</th>
+              <th>Trainer</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
-            {members.data?.data.map((m) => (
-              <tr key={m.id}>
-                <td>
-                  <Link href={`/members/${m.id}`} className="link">
-                    {m.memberCode}
-                  </Link>
-                </td>
-                <td>
-                  <Link
-                    href={`/members/${m.id}`}
-                    className="font-medium text-stone-900 hover:text-brand-700"
-                  >
-                    {m.fullName}
-                  </Link>
-                </td>
-                <td className="tabular-nums text-stone-500">{m.mobile}</td>
-                <td>{m.gender.name}</td>
-                <td>
-                  <StatusBadge status={m.status} />
-                </td>
-                <td className="text-stone-500">{m.registrationDate.slice(0, 10)}</td>
-              </tr>
-            ))}
+            {members.data?.data.map((m) => {
+              const ms = m.memberships?.[0];
+              return (
+                <tr key={m.id}>
+                  <td>
+                    <Link href={`/members/${m.id}`} className="link">
+                      {m.memberCode}
+                    </Link>
+                  </td>
+                  <td>
+                    <Link
+                      href={`/members/${m.id}`}
+                      className="font-medium text-stone-900 hover:text-brand-700"
+                    >
+                      {m.fullName}
+                    </Link>
+                    {m.emergName && (
+                      <p className="text-xs text-stone-400">E: {m.emergName}</p>
+                    )}
+                  </td>
+                  <td className="tabular-nums text-stone-500">{m.mobile}</td>
+                  <td>{m.gender.name}</td>
+                  <td>
+                    <StatusBadge status={m.status} />
+                  </td>
+                  <td className="text-stone-500">{m.registrationDate.slice(0, 10)}</td>
+                  <td className="text-stone-500">
+                    {ms ? (
+                      <>
+                        <span className="tabular-nums">
+                          {ms.startDate.slice(0, 10)} → {ms.endDate.slice(0, 10)}
+                        </span>
+                        <span className="ml-1">
+                          <PtBadge row={ms} />
+                        </span>
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td>{m.assignedTrainer?.name ?? "—"}</td>
+                  <td>
+                    <button
+                      className="btn-ghost px-2 py-0.5 text-xs"
+                      onClick={() => pdf.mutate(m)}
+                      disabled={pdf.isPending}
+                      title="Download member profile PDF"
+                    >
+                      PDF
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {members.isLoading && <p className="p-4 text-sm text-stone-500">Loading members…</p>}

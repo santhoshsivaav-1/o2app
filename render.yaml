@@ -32,6 +32,14 @@ services:
         value: Asia/Kolkata
       - key: GST_DEFAULT_PCT
         value: "18"
+      - key: GYM_NAME
+        value: Oxygen Fitness
+      - key: GYM_ADDRESS
+        sync: false
+      - key: GYM_PHONE
+        sync: false
+      - key: GYM_FOUNDER
+        value: Mr. Gobinath
   - type: web
     name: o2app-web
     runtime: node

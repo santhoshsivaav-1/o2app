@@ -1,14 +1,19 @@
-import { Body, Controller, Get, Header, Param, Patch, Post, Query, Req } from "@nestjs/common";
+import { Body, Controller, Get, Header, Param, Patch, Post, Query, Req, Res } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import type { Request } from "express";
 import { MembersService } from "./members.service.js";
-import { CreateMemberDto, CreateNoteDto, UpdateMemberDto } from "./dto.js";
+import { CreateMemberDto, CreateNoteDto, UpdateMemberDto, UpdateMemberPhotoDto } from "./dto.js";
 import { RequestUser, RequirePermissions } from "../auth/guards.js";
+import { PdfService } from "../pdf/pdf.service.js";
+import type { Response } from "express";
 
 @ApiTags("members")
 @Controller("members")
 export class MembersController {
-  constructor(private readonly members: MembersService) {}
+  constructor(
+    private readonly members: MembersService,
+    private readonly pdf: PdfService,
+  ) {}
 
   @Get()
   @RequirePermissions("members.read")
@@ -32,10 +37,37 @@ export class MembersController {
     return { matches: data };
   }
 
+  @Get("trainer-options")
+  @RequirePermissions("members.read")
+  trainerOptions() {
+    return this.members.trainerOptions();
+  }
+
+  @Post(":id/photo")
+  @RequirePermissions("members.update")
+  setPhoto(@Req() req: Request, @Body() dto: UpdateMemberPhotoDto) {
+    const id = (req.params as Record<string, string>).id;
+    return this.members.setPhoto(id, dto.photoUrl, (req.user as RequestUser).id);
+  }
+
   @Post()
   @RequirePermissions("members.create")
   create(@Req() req: Request, @Body() dto: CreateMemberDto) {
     return this.members.create(dto, (req.user as RequestUser).id);
+  }
+
+  @Get(":id/pdf")
+  @RequirePermissions("members.read")
+  async profilePdf(@Req() req: Request, @Res() res: Response) {
+    const id = (req.params as Record<string, string>).id;
+    const detail = await this.members.get(id);
+    const bytes = await this.pdf.memberProfilePdf(detail);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${detail.memberCode}-profile.pdf"`,
+    );
+    res.end(Buffer.from(bytes));
   }
 
   @Get(":id")

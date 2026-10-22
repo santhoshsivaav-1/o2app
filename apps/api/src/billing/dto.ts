@@ -35,6 +35,15 @@ export class CreatePaymentDto {
   amount!: number;
 
   @IsOptional()
+  @IsIn(["membership", "pt"])
+  type?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  notes?: string;
+
+  @IsOptional()
   @Matches(DATE_RE)
   paidAt?: string;
 
@@ -77,6 +86,10 @@ export class PaymentListQuery {
   @IsOptional()
   @IsString()
   method?: string;
+
+  @IsOptional()
+  @IsIn(["membership", "pt"])
+  type?: string;
 
   @IsOptional()
   @Matches(DATE_RE)

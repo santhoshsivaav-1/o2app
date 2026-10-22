@@ -1,6 +1,6 @@
 "use client";
 
-import { calcInvoice } from "@o2app/shared";
+import { calcInvoice, ptEndDate } from "@o2app/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -40,6 +40,10 @@ export default function NewMembershipPage() {
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [discountPct, setDiscountPct] = useState(0);
   const [notes, setNotes] = useState("");
+  const [ptTotal, setPtTotal] = useState(0);
+  const [ptMonths, setPtMonths] = useState(0);
+  const [ptStart, setPtStart] = useState(() => new Date().toISOString().slice(0, 10));
+  const [ptTrainerId, setPtTrainerId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const members = useQuery({
@@ -60,6 +64,12 @@ export default function NewMembershipPage() {
   });
 
   const pkg = packages.data?.find((p) => p.id === packageId);
+
+  const trainers = useQuery({
+    queryKey: ["trainer-options"],
+    queryFn: () => apiFetch<{ id: string; name: string }[]>("/members/trainer-options"),
+    enabled: true,
+  });
 
   const preview = useMemo(() => {
     if (!pkg) return null;
@@ -85,6 +95,10 @@ export default function NewMembershipPage() {
           startDate,
           discountPct,
           notes: notes || undefined,
+          ptTotal: ptTotal || undefined,
+          ptDurationMonths: ptTotal ? ptMonths || undefined : undefined,
+          ptStart: ptTotal ? ptStart || undefined : undefined,
+          ptTrainerId: ptTotal && ptTrainerId ? ptTrainerId : undefined,
           idempotencyKey:
             typeof crypto !== "undefined" && "randomUUID" in crypto
               ? crypto.randomUUID()
@@ -210,9 +224,79 @@ export default function NewMembershipPage() {
         </div>
       </div>
 
+      <div className="card">
+        <h2 className="section-title">3 · Personal training (optional)</h2>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">PT package amount (₹)</label>
+            <input
+              className="input"
+              type="number"
+              min={0}
+              step="1"
+              value={ptTotal || ""}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setPtTotal(v);
+                if (v <= 0) setPtMonths(0);
+                else if (!ptMonths) setPtMonths(1);
+              }}
+            />
+            <p className="hint">Billed separately from the gym invoice.</p>
+          </div>
+          {ptTotal > 0 && (
+            <>
+              <div>
+                <label className="label">Duration (months) *</label>
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  max={36}
+                  value={ptMonths || ""}
+                  onChange={(e) => setPtMonths(Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <label className="label">PT start</label>
+                <input
+                  className="input"
+                  type="date"
+                  value={ptStart}
+                  onChange={(e) => setPtStart(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="label">PT trainer</label>
+                <select
+                  className="input"
+                  value={ptTrainerId}
+                  onChange={(e) => setPtTrainerId(e.target.value)}
+                >
+                  <option value="">Select staff…</option>
+                  {(trainers.data ?? []).map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <p className="hint">
+                  PT validity ends{" "}
+                  <span className="font-medium tabular-nums">
+                    {ptEndDate(ptStart, ptMonths) ?? "—"}
+                  </span>
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
       {preview && pkg && (
         <div className="card">
-          <h2 className="section-title">3 · Payable</h2>
+          <h2 className="section-title">4 · Payable</h2>
           <dl className="mt-2 space-y-1.5 text-sm">
             <div className="flex justify-between">
               <dt className="text-stone-500">Package + reg. fee</dt>
@@ -234,6 +318,12 @@ export default function NewMembershipPage() {
               <dt>Total payable</dt>
               <dd className="tabular-nums text-brand-700">{inr(preview.total)}</dd>
             </div>
+            {ptTotal > 0 && (
+              <div className="flex justify-between">
+                <dt className="text-stone-500">PT package (separate)</dt>
+                <dd className="tabular-nums text-stone-500">₹{Number(ptTotal).toLocaleString("en-IN")}</dd>
+              </div>
+            )}
           </dl>
           <p className="hint mt-2">
             {pkg.durationDays}-day validity · invoice is created with the membership and stays

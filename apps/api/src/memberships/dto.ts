@@ -32,6 +32,24 @@ export class CreateMembershipDto {
   discountPct?: number;
 
   @IsOptional()
+  @IsNumber()
+  @Min(0)
+  ptTotal?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  ptDurationMonths?: number;
+
+  @IsOptional()
+  @Matches(DATE_RE)
+  ptStart?: string;
+
+  @IsOptional()
+  @IsUUID()
+  ptTrainerId?: string;
+
+  @IsOptional()
   @IsString()
   @MaxLength(1000)
   notes?: string;
@@ -56,6 +74,24 @@ export class RenewMembershipDto {
   @Min(0)
   @Max(100)
   discountPct?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  ptTotal?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  ptDurationMonths?: number;
+
+  @IsOptional()
+  @Matches(DATE_RE)
+  ptStart?: string;
+
+  @IsOptional()
+  @IsUUID()
+  ptTrainerId?: string;
 
   @IsOptional()
   @IsString()

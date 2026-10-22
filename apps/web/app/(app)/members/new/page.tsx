@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { memberSchema } from "@o2app/shared";
+import { EMERGENCY_RELATIONSHIPS, memberSchema } from "@o2app/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
 import { ApiError, apiFetch } from "../../../../lib/api";
+import { MemberPhoto } from "../../../../components/MemberPhoto";
 
 type FormValues = z.infer<typeof memberSchema>;
 
@@ -17,6 +18,11 @@ interface DupeMatch {
   memberCode: string;
   fullName: string;
   mobile: string;
+}
+
+interface TrainerOption {
+  id: string;
+  name: string;
 }
 
 const err = "field-err";
@@ -28,8 +34,13 @@ export default function NewMemberPage() {
     queryKey: ["genders"],
     queryFn: () => apiFetch<{ id: string; name: string }[]>("/genders"),
   });
+  const trainers = useQuery({
+    queryKey: ["trainer-options"],
+    queryFn: () => apiFetch<TrainerOption[]>("/members/trainer-options"),
+  });
   const [serverError, setServerError] = useState<string | null>(null);
   const [dupe, setDupe] = useState<DupeMatch[] | null>(null);
+  const [photoUrl, setPhotoUrl] = useState("");
 
   const {
     register,
@@ -41,7 +52,7 @@ export default function NewMemberPage() {
   async function post(values: FormValues & { confirmDuplicate?: boolean }) {
     const data = await apiFetch<{ id: string }>("/members", {
       method: "POST",
-      body: JSON.stringify(values),
+      body: JSON.stringify({ ...values, photoUrl: photoUrl || undefined }),
     });
     queryClient.invalidateQueries({ queryKey: ["members"] });
     router.replace(`/members/${data.id}`);
@@ -137,16 +148,57 @@ export default function NewMemberPage() {
             <input className="input" {...register("address")} />
           </div>
           <div>
-            <label className="label">Emergency contact</label>
-            <input className="input" {...register("emergencyContact")} />
-          </div>
-          <div>
             <label className="label">Source</label>
             <input className="input" {...register("source")} placeholder="Walk-in, referral…" />
+          </div>
+          <div>
+            <label className="label">Trainer</label>
+            <select className="input" {...register("assignedTrainerId")} defaultValue="">
+              <option value="">None assigned</option>
+              {trainers.data?.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <MemberPhoto value={photoUrl} onChange={setPhotoUrl} disabled={isSubmitting} />
           </div>
           <div className="sm:col-span-2">
             <label className="label">Notes</label>
             <textarea className="input" rows={3} {...register("notes")} />
+          </div>
+        </div>
+
+        <h2 className="section-title mt-6">Emergency contact</h2>
+        <p className="page-sub">Who should we call if something happens to the member?</p>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">Name</label>
+            <input className="input" {...register("emergName")} />
+            {errors.emergName && <p className={err}>{errors.emergName.message}</p>}
+          </div>
+          <div>
+            <label className="label">Relationship</label>
+            <select className="input" {...register("emergRelationship")} defaultValue="">
+              <option value="">Select…</option>
+              {EMERGENCY_RELATIONSHIPS.map((r) => (
+                <option key={r.key} value={r.key}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+            {errors.emergRelationship && <p className={err}>{errors.emergRelationship.message}</p>}
+          </div>
+          <div>
+            <label className="label">Mobile</label>
+            <input className="input" {...register("emergMobile")} placeholder="+91 …" />
+            {errors.emergMobile && <p className={err}>{errors.emergMobile.message}</p>}
+          </div>
+          <div>
+            <label className="label">Address</label>
+            <input className="input" {...register("emergAddress")} />
           </div>
         </div>
 

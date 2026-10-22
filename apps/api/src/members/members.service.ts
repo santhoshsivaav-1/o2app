@@ -4,7 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { normalizeMobile } from "@o2app/shared";
+import {
+  emergencyRelationshipLabel,
+  normalizeMobile,
+  ptEndDate,
+} from "@o2app/shared";
 import { PrismaService } from "../prisma.service.js";
 import { AuditService } from "../audit.service.js";
 import { SequenceService } from "./sequences.js";
@@ -16,6 +20,9 @@ export interface MemberListQuery {
   genderId?: string;
   registeredFrom?: string;
   registeredTo?: string;
+  /** Current-membership end-date range filter (expiry window). */
+  expiringFrom?: string;
+  expiringTo?: string;
   sort?: string;
   order?: string;
   page?: string;
@@ -27,6 +34,9 @@ const SORTABLE = new Set(["fullName", "memberCode", "registrationDate", "created
 function emptyToNull(v: unknown): unknown {
   return v === "" ? null : v;
 }
+
+const PHOTO_DATA_URL = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+const PHOTO_MAX_CHARS = 400_000;
 
 @Injectable()
 export class MembersService {
@@ -69,6 +79,25 @@ export class MembersService {
     return d;
   }
 
+  private photoDataUrl(v: string | undefined): string | null | undefined {
+    if (v === undefined) return undefined;
+    const s = v.trim();
+    if (!s) return null;
+    if (s.length > PHOTO_MAX_CHARS) throw new BadRequestException("Photo is too large");
+    if (!PHOTO_DATA_URL.test(s))
+      throw new BadRequestException("Photo must be a PNG, JPEG or WebP data URL");
+    return s;
+  }
+
+  private normalizeEmerg(mobile: string | undefined): string | null | undefined {
+    if (mobile === undefined) return undefined;
+    const s = mobile.trim();
+    if (!s) return null;
+    const norm = normalizeMobile(s);
+    if (norm.length < 10) throw new BadRequestException("Invalid emergency mobile number");
+    return norm;
+  }
+
   async create(dto: CreateMemberDto, actorId: string) {
     await this.assertGender(dto.genderId);
     if (dto.assignedTrainerId) await this.assertTrainer(dto.assignedTrainerId);
@@ -94,9 +123,13 @@ export class MembersService {
         genderId: dto.genderId,
         dob: dob ?? undefined,
         address: (emptyToNull(dto.address?.trim()) as string | null) ?? undefined,
-        emergencyContact: (emptyToNull(dto.emergencyContact?.trim()) as string | null) ?? undefined,
+        emergName: (emptyToNull(dto.emergName?.trim()) as string | null) ?? undefined,
+        emergMobile: this.normalizeEmerg(dto.emergMobile) ?? undefined,
+        emergAddress: (emptyToNull(dto.emergAddress?.trim()) as string | null) ?? undefined,
+        emergRelationship:
+          (emptyToNull(dto.emergRelationship?.trim()) as string | null) ?? undefined,
         registrationDate: regDate,
-        photoUrl: (emptyToNull(dto.photoUrl?.trim()) as string | null) ?? undefined,
+        photoUrl: (await this.photoDataUrl(dto.photoUrl)) ?? undefined,
         notes: (emptyToNull(dto.notes?.trim()) as string | null) ?? undefined,
         status: dto.status ?? "active",
         source: (emptyToNull(dto.source?.trim()) as string | null) ?? undefined,
@@ -152,18 +185,24 @@ export class MembersService {
           dto.address !== undefined
             ? ((emptyToNull(dto.address.trim()) as string | null) ?? null)
             : undefined,
-        emergencyContact:
-          dto.emergencyContact !== undefined
-            ? ((emptyToNull(dto.emergencyContact.trim()) as string | null) ?? null)
+        emergName:
+          dto.emergName !== undefined
+            ? ((emptyToNull(dto.emergName.trim()) as string | null) ?? null)
+            : undefined,
+        emergMobile: dto.emergMobile !== undefined ? this.normalizeEmerg(dto.emergMobile) ?? null : undefined,
+        emergAddress:
+          dto.emergAddress !== undefined
+            ? ((emptyToNull(dto.emergAddress.trim()) as string | null) ?? null)
+            : undefined,
+        emergRelationship:
+          dto.emergRelationship !== undefined
+            ? ((emptyToNull(dto.emergRelationship.trim()) as string | null) ?? null)
             : undefined,
         registrationDate:
           dto.registrationDate !== undefined
             ? this.toDateOnly(dto.registrationDate, "registrationDate")
             : undefined,
-        photoUrl:
-          dto.photoUrl !== undefined
-            ? ((emptyToNull(dto.photoUrl.trim()) as string | null) ?? null)
-            : undefined,
+        photoUrl: dto.photoUrl !== undefined ? await this.photoDataUrl(dto.photoUrl) : undefined,
         notes:
           dto.notes !== undefined
             ? ((emptyToNull(dto.notes.trim()) as string | null) ?? null)
@@ -192,6 +231,31 @@ export class MembersService {
         gender: true,
         assignedTrainer: { select: { id: true, name: true } },
         memberNotes: { orderBy: { createdAt: "desc" }, take: 50 },
+        memberships: {
+          orderBy: { startDate: "desc" },
+          take: 10,
+          include: {
+            package: { select: { id: true, name: true } },
+            ptTrainer: { select: { id: true, name: true } },
+          },
+        },
+        payments: {
+          orderBy: { paidAt: "desc" },
+          take: 100,
+          select: { id: true, type: true, method: true, amount: true, paidAt: true, reference: true, notes: true },
+        },
+        invoices: {
+          orderBy: { issuedAt: "desc" },
+          take: 20,
+          select: {
+            id: true,
+            invoiceNo: true,
+            total: true,
+            status: true,
+            issuedAt: true,
+            allocations: { select: { amount: true } },
+          },
+        },
       },
     });
     if (!member) throw new NotFoundException("Member not found");
@@ -218,14 +282,28 @@ export class MembersService {
       const ors: Record<string, unknown>[] = [
         { fullName: { contains: q, mode: "insensitive" } },
         { memberCode: { contains: q, mode: "insensitive" } },
+        { emergName: { contains: q, mode: "insensitive" } },
       ];
       if (digits.length >= 4) {
         ors.push({ mobileNorm: { contains: digits } });
+        ors.push({ emergMobile: { contains: digits } });
         ors.push({ mobile: { contains: q } });
       } else {
         ors.push({ mobile: { contains: q } });
       }
       where.OR = ors;
+    }
+    if (query.expiringFrom || query.expiringTo) {
+      // Members whose latest (current) membership ends inside the expiry window.
+      where.memberships = {
+        some: {
+          status: "active",
+          endDate: {
+            gte: query.expiringFrom ? new Date(query.expiringFrom + "T00:00:00Z") : undefined,
+            lte: query.expiringTo ? new Date(query.expiringTo + "T23:59:59Z") : undefined,
+          },
+        },
+      };
     }
     const [total, data] = await this.prisma.$transaction([
       this.prisma.member.count({ where: where as never }),
@@ -234,7 +312,15 @@ export class MembersService {
         orderBy: { [sort]: order },
         skip: (page - 1) * limit,
         take: limit,
-        include: { gender: true },
+        include: {
+          gender: true,
+          assignedTrainer: { select: { id: true, name: true } },
+          memberships: {
+            orderBy: { startDate: "desc" },
+            take: 1,
+            include: { package: { select: { id: true, name: true } } },
+          },
+        },
       }),
     ]);
     return { data, meta: { page, limit, total } };
@@ -275,23 +361,59 @@ export class MembersService {
   async exportCsv(query: MemberListQuery): Promise<string> {
     const { data } = await this.list({ ...query, page: "1", limit: "5000" });
     const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const rows = data.map((m: Record<string, unknown>) =>
-      [
+    const rows = (data as Record<string, unknown>[]).map((m) => {
+      const ms = (m.memberships as Array<Record<string, unknown>> | undefined)?.[0];
+      const gender = m.gender as Record<string, unknown> | null;
+      const trainer = m.assignedTrainer as Record<string, unknown> | null;
+      return [
         m.memberCode,
         m.fullName,
         m.mobile,
         m.email,
-        (m.gender as Record<string, unknown> | null)?.name ?? "",
+        gender?.name ?? "",
         m.status,
         m.registrationDate,
         m.source ?? "",
+        m.address ?? "",
+        m.emergName ?? "",
+        m.emergMobile ?? "",
+        emergencyRelationshipLabel(m.emergRelationship as string),
+        m.emergAddress ?? "",
+        trainer?.name ?? "",
+        ms ? `${ms.startDate} → ${ms.endDate}` : "",
+        ms && ms.ptTotal !== 0 ? `${ms.ptStart ?? ""} → ${ptEndDate(ms.ptStart as string | null, ms.ptDurationMonths as number) ?? ""}` : "",
+        ms ? String(ms.ptTotal) : "0",
       ]
         .map(esc)
-        .join(","),
-    );
+        .join(",");
+    });
     return [
-      "member_code,full_name,mobile,email,gender,status,registration_date,source",
+      "member_code,full_name,mobile,email,gender,status,registration_date,source,address,emergency_name,emergency_mobile,emergency_relationship,emergency_address,trainer,membership_dates,pt_dates,pt_total",
       ...rows,
     ].join("\n");
+  }
+
+  async trainerOptions() {
+    const users = await this.prisma.user.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+      take: 100,
+    });
+    return users;
+  }
+
+  async setPhoto(id: string, dataUrl: string, actorId: string) {
+    const member = await this.prisma.member.findUnique({ where: { id } });
+    if (!member) throw new NotFoundException("Member not found");
+    const photo = this.photoDataUrl(dataUrl.trim());
+    if (!photo) throw new BadRequestException("Photo must be a PNG, JPEG or WebP data URL");
+    const updated = await this.prisma.member.update({
+      where: { id },
+      data: { photoUrl: photo, updatedById: actorId },
+      select: { id: true, photoUrl: true, updatedAt: true },
+    });
+    await this.audit.log("members.photo", "member", id, actorId);
+    return updated;
   }
 }

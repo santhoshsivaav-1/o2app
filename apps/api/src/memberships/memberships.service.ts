@@ -10,6 +10,7 @@ import {
   diffDays,
   formatInvoiceNo,
   membershipValidity,
+  ptEndDate,
   renewalStartDate,
   todayInTimezone,
 } from "@o2app/shared";
@@ -116,6 +117,35 @@ export class MembershipsService {
     return addDays(start, durationDays - 1);
   }
 
+  private ptData(dto: {
+    ptTotal?: number;
+    ptDurationMonths?: number;
+    ptStart?: string;
+    ptTrainerId?: string;
+  }) {
+    const ptTotal = dto.ptTotal ?? 0;
+    const ptDurationMonths = dto.ptDurationMonths ?? 0;
+    if (ptTotal > 0 && ptDurationMonths < 1)
+      throw new BadRequestException("PT duration is required when a PT amount is set");
+    if (ptTotal > 0 && ptTotal > 1_000_000)
+      throw new BadRequestException("PT amount is too large");
+    const start = this.toDateOnly(dto.ptStart) ?? null;
+    return { ptTotal, ptDurationMonths, ptStart: start, ptTrainerId: dto.ptTrainerId ?? null };
+  }
+
+  private async assertPtTrainer(trainerId: string | null) {
+    if (!trainerId) return;
+    const trainer = await this.prisma.user.findUnique({ where: { id: trainerId } });
+    if (!trainer || !trainer.isActive) throw new BadRequestException("PT trainer not found");
+  }
+
+  private toDateOnly(s: string | undefined): Date | undefined {
+    if (s === undefined) return undefined;
+    const d = new Date(s + "T00:00:00Z");
+    if (Number.isNaN(d.getTime())) throw new BadRequestException("Invalid date");
+    return d;
+  }
+
   async create(dto: CreateMembershipDto, actorId: string) {
     const existing = await this.byIdempotency(dto.idempotencyKey);
     if (existing) return { ...existing, idempotentReplay: true };
@@ -135,6 +165,8 @@ export class MembershipsService {
     const pricing = this.price(pkg, dto.discountPct ?? 0);
     const end = this.endOf(start, pricing.durationDays);
     const invoiceNo = await this.nextInvoiceNo();
+    const pt = this.ptData(dto);
+    await this.assertPtTrainer(pt.ptTrainerId);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const membership = await tx.membership.create({
@@ -154,6 +186,10 @@ export class MembershipsService {
           notes: dto.notes?.trim() || null,
           idempotencyKey: dto.idempotencyKey,
           createdById: actorId,
+          ptTotal: pt.ptTotal,
+          ptDurationMonths: pt.ptDurationMonths,
+          ptStart: pt.ptStart,
+          ptTrainerId: pt.ptTrainerId,
           invoice: {
             create: {
               invoiceNo,
@@ -189,7 +225,12 @@ export class MembershipsService {
           },
           statusHistory: { create: { from: "none", to: "active", actorId, reason: "sale" } },
         },
-        include: { invoice: { include: { items: true } }, member: true, package: true },
+        include: {
+          invoice: { include: { items: true } },
+          member: true,
+          package: true,
+          ptTrainer: { select: { id: true, name: true } },
+        },
       });
       return membership;
     });
@@ -225,6 +266,8 @@ export class MembershipsService {
     const pricing = this.price(pkg, dto.discountPct ?? 0);
     const end = this.endOf(start, pricing.durationDays);
     const invoiceNo = await this.nextInvoiceNo();
+    const pt = this.ptData(dto);
+    await this.assertPtTrainer(pt.ptTrainerId);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const membership = await tx.membership.create({
@@ -245,6 +288,10 @@ export class MembershipsService {
           renewedFromId: previous.id,
           idempotencyKey: dto.idempotencyKey,
           createdById: actorId,
+          ptTotal: pt.ptTotal,
+          ptDurationMonths: pt.ptDurationMonths,
+          ptStart: pt.ptStart,
+          ptTrainerId: pt.ptTrainerId,
           invoice: {
             create: {
               invoiceNo,
@@ -280,7 +327,12 @@ export class MembershipsService {
           },
           statusHistory: { create: { from: "none", to: "active", actorId, reason: "renewal" } },
         },
-        include: { invoice: { include: { items: true } }, member: true, package: true },
+        include: {
+          invoice: { include: { items: true } },
+          member: true,
+          package: true,
+          ptTrainer: { select: { id: true, name: true } },
+        },
       });
       await tx.renewalEvent.create({
         data: {
@@ -409,6 +461,7 @@ export class MembershipsService {
         member: { select: { id: true, memberCode: true, fullName: true, mobile: true } },
         package: true,
         invoice: { include: { items: true } },
+        ptTrainer: { select: { id: true, name: true } },
         renewedFrom: { select: { id: true, startDate: true, endDate: true } },
         renewedBy: { select: { id: true, startDate: true, endDate: true } },
         statusHistory: { orderBy: { createdAt: "desc" } },
@@ -416,7 +469,11 @@ export class MembershipsService {
       },
     });
     if (!m) throw new NotFoundException("Membership not found");
-    return { ...m, validity: this.validityOf(m) };
+    return {
+      ...m,
+      validity: this.validityOf(m),
+      ptEnd: ptEndDate(m.ptStart?.toISOString().slice(0, 10) ?? null, m.ptDurationMonths),
+    };
   }
 
   private validityOf(m: { startDate: Date; endDate: Date; status: string }) {
@@ -482,7 +539,11 @@ export class MembershipsService {
       }),
     ]);
     return {
-      data: data.map((m) => ({ ...m, validity: this.validityOf(m) })),
+      data: data.map((m) => ({
+        ...m,
+        validity: this.validityOf(m),
+        ptEnd: ptEndDate(m.ptStart?.toISOString().slice(0, 10) ?? null, m.ptDurationMonths),
+      })),
       meta: { page, limit, total },
     };
   }

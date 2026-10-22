@@ -18,6 +18,7 @@ import { MembershipsService } from "./memberships/memberships.service.js";
 import { MembershipsController } from "./memberships/memberships.controller.js";
 import { BillingService } from "./billing/billing.service.js";
 import { BillingController } from "./billing/billing.controller.js";
+import { PdfService } from "./pdf/pdf.service.js";
 import { EnquiriesService } from "./enquiries/enquiries.service.js";
 import { EnquiriesController } from "./enquiries/enquiries.controller.js";
 import { AttendanceService } from "./attendance/attendance.service.js";
@@ -55,6 +56,7 @@ import { JobsController } from "./jobs/jobs.controller.js";
     PackagesService,
     MembershipsService,
     BillingService,
+    PdfService,
     EnquiriesService,
     AttendanceService,
     ReportsService,

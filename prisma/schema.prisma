@@ -22,6 +22,7 @@ model User {
   userRoles      UserRole[]
   sessions       Session[]
   trainedMembers Member[]  @relation("TrainerMembers")
+  ptMemberships  Membership[] @relation("PtTrainer")
   assignedEnquiries Enquiry[] @relation("EnquiryAssignee")
 }
 
@@ -102,7 +103,11 @@ model Member {
   gender            GenderCategory  @relation(fields: [genderId], references: [id], onDelete: Restrict)
   dob               DateTime?       @db.Date
   address           String?
-  emergencyContact  String?
+  emergencyContact  String? // legacy free-text, deprecated — use the structured fields below
+  emergName         String?
+  emergMobile       String?
+  emergAddress      String?
+  emergRelationship String?
   registrationDate  DateTime        @default(now()) @db.Date
   photoUrl          String?
   notes             String?
@@ -197,7 +202,13 @@ model Membership {
   renewedBy       Membership[] @relation("RenewalChain")
   idempotencyKey  String?   @unique
   suspendedAt     DateTime?
-  suspensionDays  Int       @default(0)
+  suspensionDays  Int        @default(0)
+  // Personal training (optional add-on)
+  ptTotal         Decimal    @default(0) @db.Decimal(12, 2)
+  ptDurationMonths Int       @default(0)
+  ptStart         DateTime?  @db.Date
+  ptTrainerId     String?
+  ptTrainer       User?      @relation("PtTrainer", fields: [ptTrainerId], references: [id], onDelete: SetNull)
   cancelledAt     DateTime?
   cancelReason    String?
   createdById     String?
@@ -212,6 +223,7 @@ model Membership {
   @@index([packageId])
   @@index([status])
   @@index([endDate])
+  @@index([ptTrainerId])
 }
 
 model RenewalEvent {
@@ -281,10 +293,13 @@ model Payment {
   id             String              @id @default(uuid())
   memberId       String
   member         Member              @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  /// membership | pt
+  type           String              @default("membership")
   method         String
   amount         Decimal             @db.Decimal(12, 2)
   paidAt         DateTime            @default(now())
   reference      String?
+  notes          String?
   verified       Boolean             @default(false)
   idempotencyKey String?             @unique
   receivedById   String?
@@ -297,6 +312,7 @@ model Payment {
   @@index([memberId])
   @@index([paidAt])
   @@index([method])
+  @@index([type])
 }
 
 model PaymentAllocation {

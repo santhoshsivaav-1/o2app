@@ -47,7 +47,22 @@ export class CreateMemberDto {
   @IsOptional()
   @IsString()
   @MaxLength(120)
-  emergencyContact?: string;
+  emergName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(17)
+  emergMobile?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  emergAddress?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  emergRelationship?: string;
 
   @IsOptional()
   @Matches(DATE_RE)
@@ -55,7 +70,7 @@ export class CreateMemberDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(500)
+  @MaxLength(400_000)
   photoUrl?: string;
 
   @IsOptional()
@@ -120,7 +135,22 @@ export class UpdateMemberDto {
   @IsOptional()
   @IsString()
   @MaxLength(120)
-  emergencyContact?: string;
+  emergName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(17)
+  emergMobile?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  emergAddress?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  emergRelationship?: string;
 
   @IsOptional()
   @Matches(DATE_RE)
@@ -128,7 +158,7 @@ export class UpdateMemberDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(500)
+  @MaxLength(400_000)
   photoUrl?: string;
 
   @IsOptional()
@@ -164,6 +194,13 @@ export class CreateNoteDto {
   @MinLength(1)
   @MaxLength(2000)
   body!: string;
+}
+
+export class UpdateMemberPhotoDto {
+  @IsString()
+  @MinLength(21)
+  @MaxLength(400_000)
+  photoUrl!: string;
 }
 
 export class CreatePackageDto {

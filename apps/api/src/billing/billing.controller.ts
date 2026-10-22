@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Header, Post, Query, Req } from "@nestjs/common";
+import { Body, Controller, Get, Header, Post, Query, Req, Res } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import type { Request } from "express";
+import type { Request, Response } from "express";
 import { BillingService } from "./billing.service.js";
+import { PdfService } from "../pdf/pdf.service.js";
 import {
   CreatePaymentDto,
   InvoiceListQuery,
@@ -14,7 +15,10 @@ import { RequestUser, RequirePermissions } from "../auth/guards.js";
 @ApiTags("billing")
 @Controller()
 export class BillingController {
-  constructor(private readonly billing: BillingService) {}
+  constructor(
+    private readonly billing: BillingService,
+    private readonly pdf: PdfService,
+  ) {}
 
   // ----- payments -----
 
@@ -52,6 +56,20 @@ export class BillingController {
   @RequirePermissions("payments.collect")
   listInvoices(@Query() query: InvoiceListQuery & { page?: string; limit?: string }) {
     return this.billing.listInvoices(query);
+  }
+
+  @Get("invoices/:id/pdf")
+  @RequirePermissions("payments.collect")
+  async invoicePdf(@Req() req: Request, @Res() res: Response) {
+    const id = (req.params as Record<string, string>).id;
+    const detail = await this.billing.getInvoice(id);
+    const bytes = await this.pdf.invoicePdf(detail);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${detail.invoiceNo}.pdf"`,
+    );
+    res.end(Buffer.from(bytes));
   }
 
   @Get("invoices/:id")
