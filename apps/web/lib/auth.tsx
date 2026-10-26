@@ -3,7 +3,7 @@
 import { createContext, useContext } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { ApiError, SessionUser, apiFetch } from "./api";
+import { ApiError, SessionUser, apiFetch, setCsrfToken } from "./api";
 
 interface AuthCtx {
   user: SessionUser | null | undefined;
@@ -40,10 +40,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginMut = useMutation<SessionUser, ApiError, { email: string; password: string }>({
     mutationFn: async ({ email, password }) => {
-      const data = await apiFetch<{ user: SessionUser }>("/auth/login", {
+      const data = await apiFetch<{ user: SessionUser; csrfToken?: string }>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
+      if (data.csrfToken) {
+        setCsrfToken(data.csrfToken);
+      }
       return data.user;
     },
     onSuccess: (user) => {
@@ -55,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logoutMut = useMutation<unknown, ApiError, void>({
     mutationFn: () => apiFetch<unknown>("/auth/logout", { method: "POST" }),
     onSettled: () => {
+      setCsrfToken(null);
       queryClient.setQueryData(["me"], null);
       router.replace("/login");
     },

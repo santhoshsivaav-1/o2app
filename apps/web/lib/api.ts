@@ -7,6 +7,63 @@ export function readCookie(name: string): string | undefined {
   return hit?.slice(name.length + 1);
 }
 
+let memoryCsrfToken: string | null = null;
+
+export function setCsrfToken(token: string | null | undefined) {
+  memoryCsrfToken = token ?? null;
+  if (typeof window !== "undefined") {
+    try {
+      if (token) {
+        sessionStorage.setItem("csrf_token", token);
+        document.cookie = `csrf_token=${token}; path=/; SameSite=Lax`;
+      } else {
+        sessionStorage.removeItem("csrf_token");
+        document.cookie = "csrf_token=; path=/; max-age=0";
+      }
+    } catch {}
+  }
+}
+
+export function getCsrfToken(): string | undefined {
+  if (memoryCsrfToken) return memoryCsrfToken;
+  if (typeof window !== "undefined") {
+    try {
+      const stored = sessionStorage.getItem("csrf_token");
+      if (stored) {
+        memoryCsrfToken = stored;
+        return stored;
+      }
+    } catch {}
+  }
+  return readCookie("csrf_token");
+}
+
+let pendingCsrfPromise: Promise<string | undefined> | null = null;
+
+async function ensureCsrfToken(): Promise<string | undefined> {
+  const existing = getCsrfToken();
+  if (existing) return existing;
+  if (pendingCsrfPromise) return pendingCsrfPromise;
+
+  pendingCsrfPromise = (async () => {
+    try {
+      const res = await fetch(BASE + "/auth/csrf", { credentials: "include" });
+      const headerToken = res.headers.get("x-csrf-token");
+      const json = await res.json().catch(() => null);
+      const token = json?.csrfToken || headerToken || readCookie("csrf_token");
+      if (token) {
+        setCsrfToken(token);
+        return token;
+      }
+    } catch {}
+    return undefined;
+  })().finally(() => {
+    pendingCsrfPromise = null;
+  });
+
+  return pendingCsrfPromise;
+}
+
 export class ApiError extends Error {
   status: number;
   details: unknown;
@@ -24,14 +81,57 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const headers: Record<string, string> = { ...(init.headers as Record<string, string>) };
   if (init.body !== undefined && !headers["Content-Type"])
     headers["Content-Type"] = "application/json";
-  if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
-    const csrf = readCookie("csrf_token");
-    if (csrf) headers["x-csrf-token"] = csrf;
+
+  const isMutating = !["GET", "HEAD", "OPTIONS"].includes(method);
+  const isLogin = path.endsWith("/auth/login");
+
+  if (isMutating && !isLogin) {
+    let csrf = getCsrfToken();
+    if (!csrf) {
+      csrf = await ensureCsrfToken();
+    }
+    if (csrf) {
+      headers["x-csrf-token"] = csrf;
+    }
   }
+
   const res = await fetch(BASE + path, { ...init, method, headers, credentials: "include" });
+
+  const csrfHeader = res.headers.get("x-csrf-token");
+  if (csrfHeader) {
+    setCsrfToken(csrfHeader);
+  }
+
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => null);
+
+  if (data && typeof data === "object" && typeof (data as any).csrfToken === "string") {
+    setCsrfToken((data as any).csrfToken);
+  }
+
   if (!res.ok) {
+    // If CSRF error occurred on mutating request, attempt one retry after fetching fresh token
+    if (
+      res.status === 403 &&
+      isMutating &&
+      (typeof data?.message === "string" && data.message.includes("CSRF"))
+    ) {
+      setCsrfToken(null);
+      const freshToken = await ensureCsrfToken();
+      if (freshToken) {
+        const retryHeaders = { ...headers, "x-csrf-token": freshToken };
+        const retryRes = await fetch(BASE + path, {
+          ...init,
+          method,
+          headers: retryHeaders,
+          credentials: "include",
+        });
+        if (retryRes.status === 204) return undefined as T;
+        const retryData = await retryRes.json().catch(() => null);
+        if (retryRes.ok) return retryData as T;
+      }
+    }
+
     const raw = data && (data.message ?? data.error);
     const message =
       typeof raw === "string"
