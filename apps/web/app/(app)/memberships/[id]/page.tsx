@@ -2,8 +2,10 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { ApiError, apiFetch } from "../../../../lib/api";
+import { PAYMENT_METHODS } from "@o2app/shared";
+import { ApiError, apiFetch, downloadFile } from "../../../../lib/api";
 import { useAuth } from "../../../../lib/auth";
 import { ValidityBadge, dateOnly, inr } from "../../../../components/memberships";
 
@@ -38,6 +40,7 @@ interface Detail {
     isActive: boolean;
   };
   invoice: {
+    id: string;
     invoiceNo: string;
     status: string;
     subtotal: string;
@@ -45,6 +48,8 @@ interface Detail {
     taxable: string;
     gst: string;
     total: string;
+    paid: string;
+    outstanding: string;
     items: { id: string; label: string; qty: number; unitPrice: string; amount: string }[];
   } | null;
   renewedFrom: { id: string; startDate: string; endDate: string } | null;
@@ -62,6 +67,7 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
   const { id } = params;
   const { has } = useAuth();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const [msg, setMsg] = useState<string | null>(null);
   const [msgOk, setMsgOk] = useState(false);
   const [renewOpen, setRenewOpen] = useState(false);
@@ -74,6 +80,13 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
   const [renewPtTrainer, setRenewPtTrainer] = useState("");
   const [extendDays, setExtendDays] = useState(30);
   const [cancelReason, setCancelReason] = useState("");
+  // payment collection states
+  const [payOpen, setPayOpen] = useState(searchParams.get("pay") === "1");
+  const [payMode, setPayMode] = useState<"full" | "partial">("full");
+  const [payAmount, setPayAmount] = useState("");
+  const [payMethod, setPayMethod] = useState("cash");
+  const [payReference, setPayReference] = useState("");
+  const [payError, setPayError] = useState<string | null>(null);
 
   const detail = useQuery({
     queryKey: ["membership", id],
@@ -149,6 +162,46 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
     onError: fail,
   });
 
+  const method = PAYMENT_METHODS.find((pm) => pm.key === payMethod);
+  const collect = useMutation({
+    mutationFn: (amount: number) => {
+      const d = detail.data;
+      const inv = d?.invoice;
+      if (!inv || !d)
+        return Promise.reject(new ApiError(400, "No invoice", "No invoice on this membership"));
+      return apiFetch(`/payments`, {
+        method: "POST",
+        body: JSON.stringify({
+          memberId: d.member.id,
+          method: payMethod,
+          amount,
+          reference: payReference || undefined,
+          type: "membership",
+          allocations: [{ invoiceId: inv.id, amount }],
+          idempotencyKey:
+            typeof crypto !== "undefined" && "randomUUID" in crypto
+              ? crypto.randomUUID()
+              : `${Date.now()}-${Math.random()}`,
+        }),
+      });
+    },
+    onSuccess: (_d, amount) => {
+      setPayError(null);
+      setPayOpen(false);
+      setPayAmount("");
+      setPayReference("");
+      const inv = detail.data?.invoice;
+      const done = amount >= (Number(inv?.outstanding ?? 0) || Infinity);
+      refresh(
+        done
+          ? `Full payment recorded for ${inv?.invoiceNo}.`
+          : `Partial payment of ${inr(amount)} recorded for ${inv?.invoiceNo}.`,
+      );
+    },
+    onError: (e) =>
+      setPayError(e instanceof ApiError ? e.message : "Could not record payment — try again"),
+  });
+
   if (detail.isLoading) return <p className="text-sm text-stone-500">Loading membership…</p>;
   if (detail.error || !detail.data)
     return (
@@ -164,6 +217,7 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
 
   const m = detail.data;
   const canLifecycle = has("memberships.renew");
+  const canCollect = has("payments.collect");
 
   return (
     <div className="max-w-4xl space-y-4">
@@ -197,10 +251,33 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
           <p className="section-title">Invoice</p>
           <p className="mt-1 text-sm font-medium text-stone-900">{m.invoice?.invoiceNo ?? "—"}</p>
           <p className="text-xs text-stone-500">
-            {m.invoice?.status === "unpaid"
-              ? "Unpaid — payment recording arrives in Phase 5"
-              : m.invoice?.status}
+            {m.invoice ? (
+              Number(m.invoice.outstanding) > 0 ? (
+                <>
+                  {m.invoice.status === "unpaid" ? "Unpaid" : "Partly paid"} — {inr(m.invoice.outstanding)}{" "}
+                  due
+                </>
+              ) : (
+                "Fully paid"
+              )
+            ) : (
+              "No invoice"
+            )}
           </p>
+          {m.invoice && (
+            <button
+              className="btn-ghost mt-2 px-2.5 py-1 text-xs"
+              onClick={() => {
+                const inv = m.invoice;
+                if (inv)
+                  downloadFile(`/memberships/${m.id}/pdf`, `${inv.invoiceNo}.pdf`).catch(() =>
+                    window.alert("PDF download failed"),
+                  );
+              }}
+            >
+              ↓ Invoice PDF
+            </button>
+          )}
         </div>
       </div>
 
@@ -282,6 +359,145 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
           </div>
         </dl>
       </div>
+
+      {m.invoice && canCollect && (
+        <div className="card">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-base font-semibold text-stone-900">Payment</h2>
+            {Number(m.invoice.outstanding) > 0 ? (
+              <span className="badge-amber">
+                {m.invoice.status === "unpaid" ? "Unpaid" : "Partly paid"} · {inr(m.invoice.paid)} of{" "}
+                {inr(m.invoice.total)}
+              </span>
+            ) : (
+              <span className="badge-green">Fully paid</span>
+            )}
+          </div>
+          <p className="mt-1 text-sm text-stone-600">
+            Payment received for {m.invoice.invoiceNo}?{" "}
+            {Number(m.invoice.outstanding) > 0
+              ? `${inr(m.invoice.outstanding)} still due.`
+              : "Nothing due — was a full payment."}
+          </p>
+
+          {Number(m.invoice.outstanding) > 0 && (
+            <div className="mt-3">
+              {!payOpen ? (
+                <button className="btn-primary text-sm" onClick={() => setPayOpen(true)}>
+                  Record payment…
+                </button>
+              ) : (
+                <div className="space-y-3 rounded-lg border border-stone-200 bg-stone-50 p-3">
+                  <div className="flex flex-wrap gap-4 text-sm">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        checked={payMode === "full"}
+                        onChange={() => {
+                          setPayMode("full");
+                          setPayAmount("");
+                          setPayError(null);
+                        }}
+                      />
+                      <span className="font-medium">
+                        Full payment ({inr(m.invoice.outstanding)})
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        checked={payMode === "partial"}
+                        onChange={() => setPayMode("partial")}
+                      />
+                      <span className="font-medium">Part payment</span>
+                      {payMode === "partial" && (
+                        <input
+                          className="input w-32 py-1 text-sm"
+                          type="number"
+                          min={1}
+                          max={Number(m.invoice.outstanding)}
+                          value={payAmount}
+                          onChange={(e) => {
+                            setPayAmount(e.target.value);
+                            setPayError(null);
+                          }}
+                          placeholder="₹ amount"
+                        />
+                      )}
+                    </label>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <select
+                      className="input w-auto py-1.5 text-sm"
+                      value={payMethod}
+                      onChange={(e) => {
+                        setPayMethod(e.target.value);
+                        setPayError(null);
+                      }}
+                    >
+                      {PAYMENT_METHODS.map((pm) => (
+                        <option key={pm.key} value={pm.key}>
+                          {pm.label}
+                        </option>
+                      ))}
+                    </select>
+                    {method?.needsReference && (
+                      <input
+                        className="input w-52 py-1 text-sm"
+                        value={payReference}
+                        onChange={(e) => setPayReference(e.target.value)}
+                        placeholder="Reference (txn / cheque no.)"
+                      />
+                    )}
+                  </div>
+
+                  {payError && <p className="alert-error text-sm">{payError}</p>}
+
+                  <div className="flex gap-2">
+                    <button
+                      className="btn-primary text-sm"
+                      disabled={collect.isPending}
+                      onClick={() => {
+                        const amount =
+                          payMode === "full"
+                            ? Number(m.invoice!.outstanding)
+                            : Number(payAmount);
+                        if (!Number.isFinite(amount) || amount <= 0) {
+                          setPayError("Enter a valid part-payment amount");
+                          return;
+                        }
+                        if (amount > Number(m.invoice!.outstanding) + 1e-9) {
+                          setPayError(
+                            `Part payment cannot exceed ${inr(m.invoice!.outstanding)}`,
+                          );
+                          return;
+                        }
+                        collect.mutate(amount);
+                      }}
+                    >
+                      {collect.isPending
+                        ? "Recording…"
+                        : payMode === "full"
+                        ? `Record full payment ${inr(m.invoice.outstanding)}`
+                        : "Record part payment"}
+                    </button>
+                    <button
+                      className="btn-ghost text-sm"
+                      onClick={() => {
+                        setPayOpen(false);
+                        setPayError(null);
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {canLifecycle && m.status !== "cancelled" && (
         <div className="card space-y-4">

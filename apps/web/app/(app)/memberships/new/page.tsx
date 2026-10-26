@@ -118,7 +118,7 @@ export default function NewMembershipPage() {
               : `${Date.now()}-${Math.random()}`,
         }),
       }),
-    onSuccess: (data) => router.replace(`/memberships/${data.id}`),
+    onSuccess: (data) => router.replace(`/memberships/${data.id}?pay=1`),
     onError: (e) => setError(e instanceof ApiError ? e.message : "Sale failed — try again"),
   });
 

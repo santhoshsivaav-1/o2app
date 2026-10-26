@@ -23,7 +23,13 @@ import {
   type MembershipRow,
 } from "../../../../components/memberships";
 import { MemberPhoto } from "../../../../components/MemberPhoto";
-import { InvoiceStatusBadge } from "../../../../components/billing";
+import {
+  CollectPaymentModal,
+  InvoiceStatusBadge,
+  methodLabel,
+  PaymentTypeBadge,
+  type PaymentRow,
+} from "../../../../components/billing";
 import { SourceBadge } from "../../../../components/attendance";
 
 interface AttendanceRow {
@@ -86,7 +92,13 @@ interface MemberInvoice {
   status: string;
 }
 
-function MemberInvoices({ memberId }: { memberId: string }) {
+function MemberInvoices({
+  memberId,
+  onCollect,
+}: {
+  memberId: string;
+  onCollect: (invoiceId: string) => void;
+}) {
   const { has } = useAuth();
   const list = useQuery({
     queryKey: ["member-invoices", memberId],
@@ -102,39 +114,94 @@ function MemberInvoices({ memberId }: { memberId: string }) {
   if (list.isLoading) return <p className="mt-2 text-sm text-stone-500">Loading…</p>;
   if (!list.data || list.data.data.length === 0)
     return <p className="mt-2 text-sm text-stone-500">No invoices yet.</p>;
+  const totalDue = list.data.data.reduce((n, i) => n + Number(i.outstanding), 0);
   return (
-    <ul className="mt-3 space-y-2">
-      {list.data.data.map((inv) => (
-        <li
-          key={inv.id}
-          className="flex flex-wrap items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm"
-        >
-          <Link
-            href={`/billing/invoices/${inv.id}`}
-            className="font-medium text-stone-900 hover:text-brand-700"
+    <div>
+      {totalDue > 0 && (
+        <p className="mt-3 flex items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm">
+          <span className="font-semibold text-stone-900">Total due: {inr(totalDue)}</span>
+          <button className="btn-primary ml-auto px-2.5 py-1 text-xs" onClick={() => onCollect("")}>
+            Collect now…
+          </button>
+        </p>
+      )}
+      <ul className="mt-3 space-y-2">
+        {list.data.data.map((inv) => (
+          <li
+            key={inv.id}
+            className="flex flex-wrap items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm"
           >
-            {inv.invoiceNo}
-          </Link>
-          <span className="text-xs tabular-nums text-stone-500">
-            {inr(inv.total)} · paid {inr(inv.paid)}
-          </span>
-          <span className="ml-auto flex items-center gap-2">
-            <span className="text-xs font-medium tabular-nums">due {inr(inv.outstanding)}</span>
-            <InvoiceStatusBadge status={inv.status} />
-            <button
-              className="btn-ghost px-2 py-0.5 text-xs"
-              onClick={() =>
-                downloadFile(`/invoices/${inv.id}/pdf`, `${inv.invoiceNo}.pdf`).catch((e) =>
-                  window.alert(e instanceof Error ? e.message : "PDF download failed"),
-                )
-              }
+            <Link
+              href={`/billing/invoices/${inv.id}`}
+              className="font-medium text-stone-900 hover:text-brand-700"
             >
-              PDF
-            </button>
-          </span>
-        </li>
-      ))}
-    </ul>
+              {inv.invoiceNo}
+            </Link>
+            <span className="text-xs tabular-nums text-stone-500">
+              {inr(inv.total)} · paid {inr(inv.paid)}
+            </span>
+            <span className="ml-auto flex items-center gap-2">
+              <span className="text-xs font-medium tabular-nums">due {inr(inv.outstanding)}</span>
+              <InvoiceStatusBadge status={inv.status} />
+              {Number(inv.outstanding) > 0 && (
+                <button
+                  className="btn-primary px-2 py-0.5 text-xs"
+                  onClick={() => onCollect(inv.id)}
+                >
+                  Collect
+                </button>
+              )}
+              <button
+                className="btn-ghost px-2 py-0.5 text-xs"
+                onClick={() =>
+                  downloadFile(`/invoices/${inv.id}/pdf`, `${inv.invoiceNo}.pdf`).catch((e) =>
+                    window.alert(e instanceof Error ? e.message : "PDF download failed"),
+                  )
+                }
+              >
+                PDF
+              </button>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function MemberPayments({ memberId }: { memberId: string }) {
+  const list = useQuery({
+    queryKey: ["member-payments", memberId],
+    queryFn: () => apiFetch<{ data: PaymentRow[] }>(`/payments?memberId=${memberId}&limit=20`),
+  });
+  if (list.isLoading) return <p className="mt-3 text-sm text-stone-500">Loading payment history…</p>;
+  if (!list.data || list.data.data.length === 0)
+    return <p className="mt-3 text-sm text-stone-500">No payments recorded yet.</p>;
+  return (
+    <div className="mt-4">
+      <p className="section-title">Payment history</p>
+      <ul className="mt-2 space-y-2">
+        {list.data.data.map((p) => (
+          <li
+            key={p.id}
+            className="flex flex-wrap items-center gap-2 rounded-lg border border-stone-100 px-3 py-2 text-sm"
+          >
+            <Link
+              href={`/billing/payments/${p.id}`}
+              className="font-medium text-stone-900 hover:text-brand-700"
+            >
+              {inr(p.amount)}
+            </Link>
+            <PaymentTypeBadge type={p.type} />
+            <span className="text-xs text-stone-500">{methodLabel(p.method)}</span>
+            {p.reference && <span className="text-xs text-stone-500">ref {p.reference}</span>}
+            <span className="ml-auto text-xs tabular-nums text-stone-500">
+              {p.paidAt.slice(0, 10)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -319,6 +386,10 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
   const [msg, setMsg] = useState<string | null>(null);
   const [msgOk, setMsgOk] = useState(false);
   const [note, setNote] = useState("");
+  const [collectOpen, setCollectOpen] = useState(false);
+  const [collectInvoiceId, setCollectInvoiceId] = useState("");
+  const [payError, setPayError] = useState<string | null>(null);
+  const [payErrorOk, setPayErrorOk] = useState(false);
 
   const member = useQuery({
     queryKey: ["member", id],
@@ -666,6 +737,9 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
             </div>
           </div>
           {msg && <p className={msgOk ? "alert-ok mt-4" : "alert-error mt-4"}>{msg}</p>}
+          {payError && (
+            <p className={payErrorOk ? "alert-ok mt-4" : "alert-error mt-4"}>{payError}</p>
+          )}
           <button
             className="btn-primary mt-4"
             type="submit"
@@ -736,16 +810,44 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
         <div className="flex items-center gap-2">
           <h2 className="text-base font-semibold text-stone-900">Invoices & payments</h2>
           {has("payments.collect") && (
-            <Link
-              href={`/billing?memberId=${m.id}`}
+            <button
               className="btn-primary ml-auto px-2.5 py-1 text-xs"
+              onClick={() => {
+                setPayError(null);
+                setCollectInvoiceId("");
+                setCollectOpen(true);
+              }}
             >
-              + Record payment
-            </Link>
+              + Collect payment
+            </button>
           )}
         </div>
-        <MemberInvoices memberId={m.id} />
+        <MemberInvoices
+          memberId={m.id}
+          onCollect={(invoiceId) => {
+            setPayError(null);
+            setCollectInvoiceId(invoiceId);
+            setCollectOpen(true);
+          }}
+        />
+        {has("payments.collect") && <MemberPayments memberId={m.id} />}
       </div>
+
+      {collectOpen && has("payments.collect") && (
+        <CollectPaymentModal
+          memberId={m.id}
+          memberName={m.fullName}
+          invoiceId={collectInvoiceId || undefined}
+          onClose={() => setCollectOpen(false)}
+          onDone={() => {
+            setCollectOpen(false);
+            setPayError("Payment recorded.");
+            setPayErrorOk(true);
+            queryClient.invalidateQueries({ queryKey: ["member", id] });
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+        />
+      )}
 
       <div className="card">
         <div className="flex items-center gap-2">

@@ -1,7 +1,10 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req } from "@nestjs/common";
+import { Body, Controller, Get, Header, Param, Patch, Post, Query, Req, Res } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import type { Request } from "express";
+import type { Request, Response } from "express";
 import { MembershipsService } from "./memberships.service.js";
+import { BillingService } from "../billing/billing.service.js";
+import { PdfService } from "../pdf/pdf.service.js";
+import { RequestUser, RequirePermissions } from "../auth/guards.js";
 import {
   CancelDto,
   CreateMembershipDto,
@@ -10,12 +13,15 @@ import {
   RenewMembershipDto,
   SuspendDto,
 } from "./dto.js";
-import { RequestUser, RequirePermissions } from "../auth/guards.js";
 
 @ApiTags("memberships")
 @Controller("memberships")
 export class MembershipsController {
-  constructor(private readonly memberships: MembershipsService) {}
+  constructor(
+    private readonly memberships: MembershipsService,
+    private readonly billing: BillingService,
+    private readonly pdf: PdfService,
+  ) {}
 
   @Get()
   @RequirePermissions("members.read")
@@ -33,6 +39,21 @@ export class MembershipsController {
   @RequirePermissions("members.read")
   get(@Req() req: Request) {
     return this.memberships.get((req.params as Record<string, string>).id);
+  }
+
+  @Get(":id/pdf")
+  @RequirePermissions("members.read")
+  async invoicePdf(@Req() req: Request, @Res() res: Response) {
+    const id = (req.params as Record<string, string>).id;
+    const invoiceId = await this.memberships.invoiceIdFor(id);
+    const detail = await this.billing.getInvoice(invoiceId);
+    const bytes = await this.pdf.invoicePdf(detail);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${detail.invoiceNo}.pdf"`,
+    );
+    res.end(Buffer.from(bytes));
   }
 
   @Post()

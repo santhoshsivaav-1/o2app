@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { apiFetch } from "../../../lib/api";
+import { apiFetch, downloadFile } from "../../../lib/api";
 import { PtBadge, ValidityBadge, dateOnly, inr, type MembershipRow } from "../../../components/memberships";
 
 export default function MembershipsPage() {
@@ -140,6 +140,7 @@ export default function MembershipsPage() {
               <th>Total</th>
               <th>Validity</th>
               <th>PT</th>
+              <th>Invoice</th>
             </tr>
           </thead>
           <tbody>
@@ -164,6 +165,18 @@ export default function MembershipsPage() {
                 </td>
                 <td>
                   <PtBadge row={m} />
+                </td>
+                <td>
+                  <button
+                    className="btn-ghost px-2 py-0.5 text-xs"
+                    onClick={() =>
+                      downloadFile(`/memberships/${m.id}/pdf`, `${m.member.memberCode}.pdf`).catch(
+                        () => window.alert("PDF download failed"),
+                      )
+                    }
+                  >
+                    PDF
+                  </button>
                 </td>
               </tr>
             ))}

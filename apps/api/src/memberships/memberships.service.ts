@@ -485,14 +485,53 @@ export class MembershipsService {
       },
     });
     if (!m) throw new NotFoundException("Membership not found");
+    if (m.invoice) {
+      const [alloc, rf] = await Promise.all([
+        this.prisma.paymentAllocation.aggregate({
+          where: { invoiceId: m.invoice.id },
+          _sum: { amount: true },
+        }),
+        this.prisma.refund.aggregate({
+          where: { invoiceId: m.invoice.id },
+          _sum: { amount: true },
+        }),
+      ]);
+      const paid = round2(Number(alloc._sum.amount ?? 0));
+      return {
+        ...m,
+        invoice: {
+          ...m.invoice,
+          paid,
+          refunded: round2(Number(rf._sum.amount ?? 0)),
+          outstanding: round2(Number(m.invoice.total) - paid),
+        },
+        validity: this.validityOf(m),
+        ptEnd: ptEndDate(
+          m.ptStart?.toISOString().slice(0, 10) ?? null,
+          m.ptDurationDays || (m.ptDurationMonths * 30),
+        ),
+      };
+    }
     return {
       ...m,
+      invoice: m.invoice,
       validity: this.validityOf(m),
       ptEnd: ptEndDate(
         m.ptStart?.toISOString().slice(0, 10) ?? null,
         m.ptDurationDays || (m.ptDurationMonths * 30),
       ),
     };
+  }
+
+  /** Resolve a membership's invoice id for the PDF endpoint. */
+  async invoiceIdFor(id: string) {
+    const m = await this.prisma.membership.findUnique({
+      where: { id },
+      select: { invoice: { select: { id: true } } },
+    });
+    if (!m) throw new NotFoundException("Membership not found");
+    if (!m.invoice) throw new NotFoundException("Membership has no invoice");
+    return m.invoice.id;
   }
 
   private validityOf(m: { startDate: Date; endDate: Date; status: string }) {

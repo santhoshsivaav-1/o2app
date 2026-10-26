@@ -48,6 +48,9 @@ export default function ReportsLayout({ children }: { children: ReactNode }) {
             <Link href="/reports/financial" className="px-3 py-2 rounded-lg text-sm font-medium hover:bg-brand-50 hover:text-brand-700 text-stone-700 whitespace-nowrap transition">
               Financials
             </Link>
+            <Link href="/reports/payment-follow-ups" className="px-3 py-2 rounded-lg text-sm font-medium hover:bg-brand-50 hover:text-brand-700 text-stone-700 whitespace-nowrap transition">
+              Payment Follow-ups
+            </Link>
             <Link href="/reports/attendance" className="px-3 py-2 rounded-lg text-sm font-medium hover:bg-brand-50 hover:text-brand-700 text-stone-700 whitespace-nowrap transition">
               Attendance
             </Link>
