@@ -43,6 +43,14 @@ export class MembersController {
     return this.members.trainerOptions();
   }
 
+  // Lightweight search for pickers (sell membership, billing, etc.) —
+  // returns only the fields a picker renders, no heavy joins and no count.
+  @Get("search-options")
+  @RequirePermissions("members.read")
+  searchOptions(@Query() query: Record<string, string>) {
+    return this.members.searchOptions(query);
+  }
+
   @Post(":id/photo")
   @RequirePermissions("members.update")
   setPhoto(@Req() req: Request, @Body() dto: UpdateMemberPhotoDto) {

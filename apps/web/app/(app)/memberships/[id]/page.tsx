@@ -24,6 +24,7 @@ interface Detail {
   suspensionDays: number;
   cancelReason: string | null;
   ptTotal: string;
+  ptDurationDays: number | null;
   ptDurationMonths: number | null;
   ptStart: string | null;
   ptTrainer: { id: string; name: string } | null;
@@ -68,7 +69,7 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
   const [renewStart, setRenewStart] = useState("");
   const [renewDiscount, setRenewDiscount] = useState(0);
   const [renewPtTotal, setRenewPtTotal] = useState(0);
-  const [renewPtMonths, setRenewPtMonths] = useState(0);
+  const [renewPtDays, setRenewPtDays] = useState(0);
   const [renewPtStart, setRenewPtStart] = useState("");
   const [renewPtTrainer, setRenewPtTrainer] = useState("");
   const [extendDays, setExtendDays] = useState(30);
@@ -108,7 +109,8 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
           startDate: renewStart || undefined,
           discountPct: renewDiscount,
           ptTotal: renewPtTotal || undefined,
-          ptDurationMonths: renewPtTotal ? Math.max(1, Math.round(Number(renewPtMonths))) : undefined,
+          ptDurationDays: renewPtTotal ? Math.max(1, Math.round(Number(renewPtDays))) : undefined,
+          ptDurationMonths: renewPtTotal ? Math.max(1, Math.ceil(Number(renewPtDays) / 30)) : undefined,
           ptStart: renewPtTotal ? renewPtStart || undefined : undefined,
           ptTrainerId: renewPtTotal && renewPtTrainer ? renewPtTrainer : undefined,
           idempotencyKey: crypto.randomUUID(),
@@ -215,7 +217,13 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
             </p>
             <p>
               <span className="text-stone-500">Duration </span>
-              <span className="font-medium">{m.ptDurationMonths ?? "—"} month(s)</span>
+              <span className="font-medium">
+                {m.ptDurationDays
+                  ? `${m.ptDurationDays} day(s)`
+                  : m.ptDurationMonths
+                  ? `${m.ptDurationMonths} month(s)`
+                  : "—"}
+              </span>
             </p>
             <p>
               <span className="text-stone-500">Valid until </span>
@@ -341,6 +349,7 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
                   max={100}
                   step="0.5"
                   value={renewDiscount}
+                  onWheel={(e) => e.currentTarget.blur()}
                   onChange={(e) => setRenewDiscount(Number(e.target.value))}
                 />
               </div>
@@ -352,32 +361,34 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
                   min={0}
                   step="1"
                   value={renewPtTotal || ""}
+                  onWheel={(e) => e.currentTarget.blur()}
                   onChange={(e) => {
                     const v = Number(e.target.value);
                     setRenewPtTotal(v);
-                    if (v <= 0) setRenewPtMonths(0);
-                    else if (!renewPtMonths) setRenewPtMonths(1);
+                    if (v <= 0) setRenewPtDays(0);
+                    else if (!renewPtDays) setRenewPtDays(30);
                   }}
                 />
               </div>
               {renewPtTotal > 0 && (
                 <>
                   <div>
-                    <label className="label">PT duration (months) *</label>
+                    <label className="label">PT duration (days) *</label>
                     <input
                       className="input"
                       type="number"
                       min={1}
-                      max={36}
+                      max={730}
                       step="1"
-                      placeholder="e.g. 1, 3, 6, 12"
-                      value={renewPtMonths || ""}
+                      placeholder="e.g. 30, 45, 60, 90"
+                      value={renewPtDays || ""}
+                      onWheel={(e) => e.currentTarget.blur()}
                       onChange={(e) => {
                         const val = e.target.value;
-                        setRenewPtMonths(val === "" ? 0 : Math.max(0, Math.round(Number(val))));
+                        setRenewPtDays(val === "" ? 0 : Math.max(0, Math.round(Number(val))));
                       }}
                     />
-                    <p className="hint">Whole months (e.g. 1, 3, 6, 12)</p>
+                    <p className="hint">Duration in days (e.g. 30, 45, 60, 90)</p>
                   </div>
                   <div>
                     <label className="label">PT start</label>
@@ -427,6 +438,7 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
                   min={1}
                   max={365}
                   value={extendDays}
+                  onWheel={(e) => e.currentTarget.blur()}
                   onChange={(e) => setExtendDays(Number(e.target.value))}
                 />
               </div>

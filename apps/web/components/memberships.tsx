@@ -10,6 +10,7 @@ export interface MembershipRow {
   member: { id: string; memberCode: string; fullName: string; mobile: string };
   package: { id: string; name: string };
   ptTotal?: string;
+  ptDurationDays?: number;
   ptDurationMonths?: number;
   ptStart?: string | null;
   ptTrainer?: { id: string; name: string } | null;

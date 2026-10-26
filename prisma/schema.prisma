@@ -205,6 +205,7 @@ model Membership {
   suspensionDays  Int        @default(0)
   // Personal training (optional add-on)
   ptTotal         Decimal    @default(0) @db.Decimal(12, 2)
+  ptDurationDays  Int        @default(0)
   ptDurationMonths Int       @default(0)
   ptStart         DateTime?  @db.Date
   ptTrainerId     String?

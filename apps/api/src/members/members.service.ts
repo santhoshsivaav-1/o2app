@@ -326,6 +326,22 @@ export class MembersService {
     return { data, meta: { page, limit, total } };
   }
 
+  async searchOptions(query: { q?: string }) {
+    const q = (query.q ?? "").trim();
+    const where: Record<string, unknown> = { status: "active" };
+    if (q.length >= 2) {
+      const digits = q.replace(/\D/g, "");
+      const ors: Record<string, unknown>[] = [
+        { fullName: { contains: q, mode: "insensitive" } },
+        { memberCode: { contains: q, mode: "insensitive" } },
+        { mobile: { contains: q } },
+      ];
+      if (digits.length >= 4) ors.push({ mobileNorm: { contains: digits } });
+      where.OR = ors;
+    }
+    return { data: await this.prisma.member.findMany({ where: where as never, orderBy: [{ fullName: "asc" }], take: 10, select: { id: true, memberCode: true, fullName: true, mobile: true } }) };
+  }
+
   async archive(id: string, actorId: string) {
     const existing = await this.prisma.member.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException("Member not found");
@@ -380,9 +396,9 @@ export class MembersService {
         emergencyRelationshipLabel(m.emergRelationship as string),
         m.emergAddress ?? "",
         trainer?.name ?? "",
-        ms ? `${ms.startDate} → ${ms.endDate}` : "",
-        ms && ms.ptTotal !== 0 ? `${ms.ptStart ?? ""} → ${ptEndDate(ms.ptStart as string | null, ms.ptDurationMonths as number) ?? ""}` : "",
-        ms ? String(ms.ptTotal) : "0",
+        ms && ms.ptTotal !== 0
+          ? `${ms.ptStart ?? ""} → ${ptEndDate(ms.ptStart as string | null, Number(ms.ptDurationDays || (Number(ms.ptDurationMonths) * 30))) ?? ""}`
+          : "",
       ]
         .map(esc)
         .join(",");

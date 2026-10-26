@@ -182,6 +182,7 @@ export interface InvoicePdfData {
     status: string;
     package?: { name: string } | null;
     ptTotal?: unknown;
+    ptDurationDays?: unknown;
     ptDurationMonths?: unknown;
     ptStart?: Date | null;
     ptTrainer?: { name: string } | null;
@@ -213,6 +214,7 @@ export interface MemberPdfData {
     total: unknown;
     package?: { name: string } | null;
     ptTotal?: unknown;
+    ptDurationDays?: unknown;
     ptDurationMonths?: unknown;
     ptStart?: Date | null;
     ptTrainer?: { name: string } | null;
@@ -407,9 +409,12 @@ export class PdfService {
     if (ptTotal > 0) {
       canvas.ensure(64);
       const ms = data.membership!;
+      const ptDays = Number(
+        (ms as any).ptDurationDays || (Number(ms.ptDurationMonths ?? 0) * 30),
+      );
       const ptEnd = ptEndDate(
         ms.ptStart ? ms.ptStart.toISOString().slice(0, 10) : null,
-        Number(ms.ptDurationMonths ?? 0),
+        ptDays,
       );
       canvas.page.drawRectangle({
         x: MARGIN_X, y: canvas.y - 52, width: PAGE_W - 2 * MARGIN_X, height: 56, color: BRAND_BG,
@@ -421,7 +426,7 @@ export class PdfService {
       canvas.text("Trainer", MARGIN_X + 10, 9, { color: MUTED });
       canvas.text(ms.ptTrainer?.name ?? "—", MARGIN_X + 70, 9, { bold: true });
       canvas.text("Duration", PAGE_W / 2 - 10, 9, { color: MUTED });
-      canvas.text(`${Number(ms.ptDurationMonths ?? 0)} month(s)`, PAGE_W / 2 + 40, 9, { bold: true });
+      canvas.text(`${ptDays} day(s)`, PAGE_W / 2 + 40, 9, { bold: true });
       canvas.text("Period", MARGIN_X + 200, 9, { color: MUTED });
       canvas.text(`${dmy(ms.ptStart)} – ${ptEnd ? dmy(ptEnd) : "—"}`, MARGIN_X + 240, 9);
       canvas.y -= 14;
@@ -616,12 +621,15 @@ export class PdfService {
       const ptTotal = Number(first.ptTotal ?? 0);
       if (ptTotal > 0) {
         canvas.text("PT", PAGE_W / 2 + 110, 9, { color: MUTED });
+        const ptDays = Number(
+          (first as any).ptDurationDays || (Number(first.ptDurationMonths ?? 0) * 30),
+        );
         const ptEnd = ptEndDate(
           first.ptStart ? first.ptStart.toISOString().slice(0, 10) : null,
-          Number(first.ptDurationMonths ?? 0),
+          ptDays,
         );
         canvas.text(
-          `${inr(ptTotal)} · ${Number(first.ptDurationMonths ?? 0)}m · ${dmy(first.ptStart)} – ${ptEnd ? dmy(ptEnd) : "—"} · ${first.ptTrainer?.name ?? "—"}`,
+          `${inr(ptTotal)} · ${ptDays}d · ${dmy(first.ptStart)} – ${ptEnd ? dmy(ptEnd) : "—"} · ${first.ptTrainer?.name ?? "—"}`,
           PAGE_W / 2 + 135, 9, { bold: true },
         );
       }

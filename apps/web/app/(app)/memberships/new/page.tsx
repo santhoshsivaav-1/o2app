@@ -4,7 +4,7 @@ import { calcInvoice, ptEndDate } from "@o2app/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, apiFetch } from "../../../../lib/api";
 import { inr } from "../../../../components/memberships";
 
@@ -36,21 +36,33 @@ export default function NewMembershipPage() {
 
   const [memberId, setMemberId] = useState(preselected);
   const [memberSearch, setMemberSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [listOpen, setListOpen] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [packageId, setPackageId] = useState("");
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [discountPct, setDiscountPct] = useState(0);
   const [notes, setNotes] = useState("");
   const [ptTotal, setPtTotal] = useState(0);
-  const [ptMonths, setPtMonths] = useState(0);
+  const [ptDays, setPtDays] = useState(0);
   const [ptStart, setPtStart] = useState(() => new Date().toISOString().slice(0, 10));
   const [ptTrainerId, setPtTrainerId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  // Debounce the search box so we don't fire a request per keystroke.
+  const onMemberSearchChange = (value: string) => {
+    setMemberSearch(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedSearch(value.trim()), 300);
+  };
+
   const members = useQuery({
-    queryKey: ["member-pick", memberSearch],
+    queryKey: ["member-pick", debouncedSearch],
     queryFn: () =>
-      apiFetch<{ data: MemberOption[] }>(`/members?q=${encodeURIComponent(memberSearch)}&limit=8`),
-    enabled: memberSearch.trim().length >= 2 && !memberId,
+      apiFetch<{ data: MemberOption[] }>(
+        `/members/search-options?q=${encodeURIComponent(debouncedSearch)}`,
+      ),
+    enabled: !memberId,
   });
   const packages = useQuery({
     queryKey: ["packages-sale"],
@@ -96,7 +108,8 @@ export default function NewMembershipPage() {
           discountPct,
           notes: notes || undefined,
           ptTotal: ptTotal || undefined,
-          ptDurationMonths: ptTotal ? Math.max(1, Math.round(Number(ptMonths))) : undefined,
+          ptDurationDays: ptTotal ? Math.max(1, Math.round(Number(ptDays))) : undefined,
+          ptDurationMonths: ptTotal ? Math.max(1, Math.ceil(Number(ptDays) / 30)) : undefined,
           ptStart: ptTotal ? ptStart || undefined : undefined,
           ptTrainerId: ptTotal && ptTrainerId ? ptTrainerId : undefined,
           idempotencyKey:
@@ -137,40 +150,54 @@ export default function NewMembershipPage() {
             </button>
           </div>
         ) : (
-          <div className="mt-2">
+          <div className="relative mt-2">
             <input
               className="input"
               value={memberSearch}
-              onChange={(e) => setMemberSearch(e.target.value)}
-              placeholder="Type at least 2 letters of name, code or mobile…"
+              onChange={(e) => onMemberSearchChange(e.target.value)}
+              onFocus={() => setListOpen(true)}
+              onBlur={() => setListOpen(false)}
+              placeholder="Search by name, code or mobile…"
+              autoComplete="off"
             />
-            <ul className="mt-2 divide-y divide-stone-100 rounded-lg border border-stone-200">
-              {members.data?.data.map((m) => (
-                <li key={m.id}>
-                  <button
-                    className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-stone-50"
-                    onClick={() => {
-                      setMemberId(m.id);
-                      setMemberSearch("");
-                    }}
-                  >
-                    <span className="font-medium text-stone-900">{m.fullName}</span>
-                    <span className="text-xs text-stone-500">
-                      {m.memberCode} · {m.mobile}
-                    </span>
-                  </button>
-                </li>
-              ))}
-              {memberSearch.trim().length >= 2 && members.data?.data.length === 0 && (
-                <li className="px-3 py-3 text-sm text-stone-500">
-                  No match —{" "}
-                  <Link href="/members/new" className="link">
-                    register a new member first
-                  </Link>
-                  .
-                </li>
-              )}
-            </ul>
+            {listOpen && (
+              <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto divide-y divide-stone-100 rounded-lg border border-stone-200 bg-white shadow-lg">
+                {members.isFetching && (
+                  <li className="px-3 py-3 text-sm text-stone-500">Searching…</li>
+                )}
+                {!members.isFetching &&
+                  (members.data?.data.length ? (
+                    members.data.data.map((m) => (
+                      <li key={m.id}>
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-stone-50"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setMemberId(m.id);
+                            setMemberSearch("");
+                            setDebouncedSearch("");
+                            setListOpen(false);
+                          }}
+                        >
+                          <span className="font-medium text-stone-900">{m.fullName}</span>
+                          <span className="text-xs text-stone-500">
+                            {m.memberCode} · {m.mobile}
+                          </span>
+                        </button>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="px-3 py-3 text-sm text-stone-500">
+                      No match —{" "}
+                      <Link href="/members/new" className="link">
+                        register a new member first
+                      </Link>
+                      .
+                    </li>
+                  ))}
+              </ul>
+            )}
           </div>
         )}
       </div>
@@ -214,6 +241,7 @@ export default function NewMembershipPage() {
               step="0.5"
               value={discountPct}
               onChange={(e) => setDiscountPct(Number(e.target.value))}
+              onWheel={(e) => e.currentTarget.blur()}
             />
             <p className="hint">Package allows up to {maxDiscount}%.</p>
           </div>
@@ -238,30 +266,32 @@ export default function NewMembershipPage() {
               onChange={(e) => {
                 const v = Number(e.target.value);
                 setPtTotal(v);
-                if (v <= 0) setPtMonths(0);
-                else if (!ptMonths) setPtMonths(1);
+                if (v <= 0) setPtDays(0);
+                else if (!ptDays) setPtDays(pkg?.durationDays ?? 30);
               }}
+              onWheel={(e) => e.currentTarget.blur()}
             />
             <p className="hint">Billed separately from the gym invoice.</p>
           </div>
           {ptTotal > 0 && (
             <>
               <div>
-                <label className="label">Duration (months) *</label>
+                <label className="label">Duration (days) *</label>
                 <input
                   className="input"
                   type="number"
                   min={1}
-                  max={36}
+                  max={730}
                   step="1"
-                  placeholder="e.g. 1, 3, 6, 12"
-                  value={ptMonths || ""}
+                  placeholder="e.g. 30, 45, 60, 90"
+                  value={ptDays || ""}
                   onChange={(e) => {
                     const val = e.target.value;
-                    setPtMonths(val === "" ? 0 : Math.max(0, Math.round(Number(val))));
+                    setPtDays(val === "" ? 0 : Math.max(0, Math.round(Number(val))));
                   }}
+                  onWheel={(e) => e.currentTarget.blur()}
                 />
-                <p className="hint">Whole months (e.g. 1, 3, 6, 12)</p>
+                <p className="hint">Duration in days (e.g. 30, 45, 60, 90, 120)</p>
               </div>
               <div>
                 <label className="label">PT start</label>
@@ -291,7 +321,7 @@ export default function NewMembershipPage() {
                 <p className="hint">
                   PT validity ends{" "}
                   <span className="font-medium tabular-nums">
-                    {ptEndDate(ptStart, ptMonths) ?? "—"}
+                    {ptEndDate(ptStart, ptDays) ?? "—"}
                   </span>
                 </p>
               </div>

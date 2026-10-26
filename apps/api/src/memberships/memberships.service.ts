@@ -119,19 +119,32 @@ export class MembershipsService {
 
   private ptData(dto: {
     ptTotal?: number;
+    ptDurationDays?: number;
     ptDurationMonths?: number;
     ptStart?: string;
     ptTrainerId?: string;
   }) {
     const ptTotal = dto.ptTotal ?? 0;
-    const ptDurationMonths =
-      ptTotal > 0 ? Math.max(1, Math.round(Number(dto.ptDurationMonths ?? 0))) : 0;
-    if (ptTotal > 0 && Number(dto.ptDurationMonths ?? 0) <= 0)
-      throw new BadRequestException("PT duration is required when a PT amount is set");
+    let ptDurationDays = 0;
+    if (dto.ptDurationDays !== undefined && dto.ptDurationDays !== null) {
+      ptDurationDays = Math.max(0, Math.round(Number(dto.ptDurationDays)));
+    } else if (dto.ptDurationMonths !== undefined && dto.ptDurationMonths !== null) {
+      ptDurationDays = Math.max(0, Math.round(Number(dto.ptDurationMonths) * 30));
+    }
+    const ptDurationMonths = Math.ceil(ptDurationDays / 30);
+
+    if (ptTotal > 0 && ptDurationDays < 1)
+      throw new BadRequestException("PT duration in days is required when a PT amount is set");
     if (ptTotal > 0 && ptTotal > 1_000_000)
       throw new BadRequestException("PT amount is too large");
     const start = this.toDateOnly(dto.ptStart) ?? null;
-    return { ptTotal, ptDurationMonths, ptStart: start, ptTrainerId: dto.ptTrainerId ?? null };
+    return {
+      ptTotal,
+      ptDurationDays,
+      ptDurationMonths,
+      ptStart: start,
+      ptTrainerId: dto.ptTrainerId ?? null,
+    };
   }
 
   private async assertPtTrainer(trainerId: string | null) {
@@ -188,6 +201,7 @@ export class MembershipsService {
           idempotencyKey: dto.idempotencyKey,
           createdById: actorId,
           ptTotal: pt.ptTotal,
+          ptDurationDays: pt.ptDurationDays,
           ptDurationMonths: pt.ptDurationMonths,
           ptStart: pt.ptStart,
           ptTrainerId: pt.ptTrainerId,
@@ -234,7 +248,7 @@ export class MembershipsService {
         },
       });
       return membership;
-    });
+    }, { maxWait: 10_000, timeout: 20_000 });
     await this.audit.log("memberships.create", "membership", created.id, actorId);
     return created;
   }
@@ -290,6 +304,7 @@ export class MembershipsService {
           idempotencyKey: dto.idempotencyKey,
           createdById: actorId,
           ptTotal: pt.ptTotal,
+          ptDurationDays: pt.ptDurationDays,
           ptDurationMonths: pt.ptDurationMonths,
           ptStart: pt.ptStart,
           ptTrainerId: pt.ptTrainerId,
@@ -344,7 +359,7 @@ export class MembershipsService {
         },
       });
       return membership;
-    });
+    }, { maxWait: 10_000, timeout: 20_000 });
     await this.audit.log("memberships.renew", "membership", created.id, actorId);
     return created;
   }
@@ -473,7 +488,10 @@ export class MembershipsService {
     return {
       ...m,
       validity: this.validityOf(m),
-      ptEnd: ptEndDate(m.ptStart?.toISOString().slice(0, 10) ?? null, m.ptDurationMonths),
+      ptEnd: ptEndDate(
+        m.ptStart?.toISOString().slice(0, 10) ?? null,
+        m.ptDurationDays || (m.ptDurationMonths * 30),
+      ),
     };
   }
 
@@ -543,7 +561,10 @@ export class MembershipsService {
       data: data.map((m) => ({
         ...m,
         validity: this.validityOf(m),
-        ptEnd: ptEndDate(m.ptStart?.toISOString().slice(0, 10) ?? null, m.ptDurationMonths),
+        ptEnd: ptEndDate(
+          m.ptStart?.toISOString().slice(0, 10) ?? null,
+          m.ptDurationDays || (m.ptDurationMonths * 30),
+        ),
       })),
       meta: { page, limit, total },
     };

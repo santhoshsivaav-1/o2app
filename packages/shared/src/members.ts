@@ -184,12 +184,12 @@ export function emergencyRelationshipLabel(key: string | null | undefined): stri
   return EMERGENCY_RELATIONSHIPS.find((r) => r.key === key)?.label ?? key;
 }
 
-/** PT validity: ptStart + months (whole months after the PT start date). */
-export function ptEndDate(ptStart: string | null | undefined, months: number | null | undefined): string | null {
-  if (!ptStart || !months || months < 1) return null;
+/** PT validity: ptStart + days (inclusive). */
+export function ptEndDate(ptStart: string | null | undefined, days: number | null | undefined): string | null {
+  if (!ptStart || !days || days < 1) return null;
   const d = new Date(ptStart + "T00:00:00Z");
   if (Number.isNaN(d.getTime())) return null;
-  d.setUTCMonth(d.getUTCMonth() + months);
+  d.setUTCDate(d.getUTCDate() + Math.round(days) - 1);
   return d.toISOString().slice(0, 10);
 }
 

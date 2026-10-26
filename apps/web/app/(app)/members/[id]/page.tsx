@@ -169,6 +169,7 @@ interface Member {
     status: string;
     total: string;
     ptTotal: string;
+    ptDurationDays: number | null;
     ptDurationMonths: number | null;
     ptStart: string | null;
     ptTrainer: { id: string; name: string } | null;
@@ -282,7 +283,13 @@ function PlanCard({
             </p>
             <p>
               <span className="text-stone-500">Duration </span>
-              <span className="font-medium">{current.ptDurationMonths ?? "—"} month(s)</span>
+              <span className="font-medium">
+                {current.ptDurationDays
+                  ? `${current.ptDurationDays} day(s)`
+                  : current.ptDurationMonths
+                    ? `${current.ptDurationMonths * 30} day(s)`
+                    : "—"}
+              </span>
             </p>
             <p>
               <span className="text-stone-500">Period </span>
@@ -445,7 +452,10 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
   const archived = m.status === "archived";
   const current = m.memberships?.[0];
   const ptEnd = current
-    ? ptEndDate(current.ptStart ? current.ptStart.slice(0, 10) : null, current.ptDurationMonths)
+    ? ptEndDate(
+        current.ptStart ? current.ptStart.slice(0, 10) : null,
+        current.ptDurationDays || (current.ptDurationMonths ? current.ptDurationMonths * 30 : 0),
+      )
     : null;
 
   return (

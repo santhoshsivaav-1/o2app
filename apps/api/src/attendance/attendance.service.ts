@@ -419,7 +419,7 @@ export class AttendanceService {
         },
       });
       return rec;
-    });
+    }, { maxWait: 10_000, timeout: 20_000 });
     await this.audit.log("attendance.manual", "attendance", record.id, actorId);
     return record;
   }
@@ -465,7 +465,7 @@ export class AttendanceService {
         },
       });
       return rec;
-    });
+    }, { maxWait: 10_000, timeout: 20_000 });
     await this.audit.log("attendance.correct", "attendance", id, actorId);
     return updated;
   }

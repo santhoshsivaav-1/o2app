@@ -39,6 +39,11 @@ export class CreateMembershipDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  ptDurationDays?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
   ptDurationMonths?: number;
 
   @IsOptional()
@@ -79,6 +84,11 @@ export class RenewMembershipDto {
   @IsNumber()
   @Min(0)
   ptTotal?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  ptDurationDays?: number;
 
   @IsOptional()
   @IsNumber()

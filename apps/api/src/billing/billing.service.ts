@@ -116,7 +116,8 @@ export class BillingService {
     // A double-submit race can pass the replay check above in both requests;
     // the unique constraint decides the winner and the loser replays it.
     const created = await this.prisma
-      .$transaction(async (tx) => {
+      .$transaction(
+        async (tx) => {
         const payment = await tx.payment.create({
           data: {
             memberId: member.id,
@@ -156,7 +157,9 @@ export class BillingService {
           });
         }
         return { payment, credit, idempotentReplay: false };
-      })
+      },
+        { maxWait: 10_000, timeout: 20_000 },
+      )
       .catch(async (e) => {
         if (
           dto.idempotencyKey &&
@@ -257,7 +260,7 @@ export class BillingService {
       if (invoiceId) touched.add(invoiceId);
       for (const invId of touched) await this.refreshInvoiceStatus(tx, invId);
       return row;
-    });
+    }, { maxWait: 10_000, timeout: 20_000 });
     await this.audit.log("payments.refund", "payment", payment.id, actorId);
     return refund;
   }
@@ -294,6 +297,7 @@ export class BillingService {
             status: true,
             package: { select: { name: true } },
             ptTotal: true,
+            ptDurationDays: true,
             ptDurationMonths: true,
             ptStart: true,
             ptTrainer: { select: { name: true } },
