@@ -8,7 +8,7 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { PrismaService } from "../prisma.service.js";
-import { newCsrfCompare, verifyAccess } from "../tokens.js";
+import { csrfForSession, newCsrfCompare, verifyAccess } from "../tokens.js";
 
 export interface RequestUser {
   id: string;
@@ -109,9 +109,23 @@ export class CsrfGuard implements CanActivate {
     if (p.endsWith("/devices/events:ingest")) return true; // device-key auth, no browser session
     const sent = req.headers?.["x-csrf-token"];
     const expectedCookie = req.cookies?.["csrf_token"];
-    if (typeof sent !== "string" || typeof expectedCookie !== "string" || !sent)
+    const sessionToken = req.user?.sessionId
+      ? csrfForSession(req.user.sessionId, process.env.CSRF_SECRET ?? "")
+      : undefined;
+
+    if (typeof sent !== "string" || !sent) {
       throw new ForbiddenException("Missing CSRF token");
-    if (!newCsrfCompare(sent, expectedCookie)) throw new ForbiddenException("Invalid CSRF token");
+    }
+
+    const matchesCookie =
+      typeof expectedCookie === "string" && expectedCookie
+        ? newCsrfCompare(sent, expectedCookie)
+        : false;
+    const matchesSession = sessionToken ? newCsrfCompare(sent, sessionToken) : false;
+
+    if (!matchesCookie && !matchesSession) {
+      throw new ForbiddenException("Invalid CSRF token");
+    }
     return true;
   }
 }

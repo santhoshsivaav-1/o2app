@@ -10,7 +10,12 @@ async function bootstrap() {
   const env = loadEnv();
   const app = await NestFactory.create(AppModule);
   app.use(cookieParser());
-  app.enableCors({ origin: env.webOrigins, credentials: true });
+  const allowedOrigins = [...env.webOrigins];
+  if (!env.isProd) {
+    if (!allowedOrigins.includes("http://localhost:3000")) allowedOrigins.push("http://localhost:3000");
+    if (!allowedOrigins.includes("http://127.0.0.1:3000")) allowedOrigins.push("http://127.0.0.1:3000");
+  }
+  app.enableCors({ origin: allowedOrigins, credentials: true, exposedHeaders: ["x-csrf-token"] });
   app.setGlobalPrefix("api/v1");
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),

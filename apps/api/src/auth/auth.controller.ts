@@ -16,6 +16,7 @@ function setSessionCookies(
     httpOnly: true,
     secure: isProd, // Secure cookies also work on http://localhost in modern browsers
     sameSite: (isProd ? "none" : "lax") as "none" | "lax",
+    path: "/",
   };
   res.cookie("access_token", tokens.accessToken, { ...base, maxAge: 15 * 60 * 1000 });
   res.cookie("refresh_token", tokens.refreshToken, {
@@ -27,8 +28,10 @@ function setSessionCookies(
     httpOnly: false,
     secure: isProd,
     sameSite: (isProd ? "none" : "lax") as "none" | "lax",
+    path: "/",
     maxAge: 7 * 24 * 3600 * 1000,
   });
+  res.setHeader("x-csrf-token", tokens.csrfToken);
 }
 
 function clearSessionCookies(res: Response) {
@@ -46,13 +49,19 @@ export class AuthController {
   @Get("csrf")
   csrf(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const user = req.user as RequestUser | undefined;
-    if (user) {
-      res.cookie("csrf_token", csrfForSession(user.sessionId, process.env.CSRF_SECRET ?? ""), {
+    const isProd = (process.env.NODE_ENV ?? "development") === "production";
+    const token = user ? csrfForSession(user.sessionId, process.env.CSRF_SECRET ?? "") : "";
+    if (token) {
+      res.cookie("csrf_token", token, {
         httpOnly: false,
+        secure: isProd,
+        sameSite: (isProd ? "none" : "lax") as "none" | "lax",
+        path: "/",
         maxAge: 7 * 24 * 3600 * 1000,
       });
+      res.setHeader("x-csrf-token", token);
     }
-    return { ok: true };
+    return { ok: true, csrfToken: token };
   }
 
   @Public()
@@ -62,7 +71,7 @@ export class AuthController {
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const { tokens, user } = await this.auth.login(dto.email, dto.password);
     setSessionCookies(res, tokens);
-    return { user };
+    return { user, csrfToken: tokens.csrfToken };
   }
 
   @Public()
@@ -71,7 +80,7 @@ export class AuthController {
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const { tokens, user } = await this.auth.refresh(req.cookies?.["refresh_token"]);
     setSessionCookies(res, tokens);
-    return { user };
+    return { user, csrfToken: tokens.csrfToken };
   }
 
   @HttpCode(200)
@@ -93,8 +102,11 @@ export class AuthController {
   }
 
   @Get("me")
-  me(@Req() req: Request) {
-    return this.auth.publicUser((req.user as RequestUser).id);
+  me(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const user = req.user as RequestUser;
+    const token = csrfForSession(user.sessionId, process.env.CSRF_SECRET ?? "");
+    res.setHeader("x-csrf-token", token);
+    return this.auth.publicUser(user.id);
   }
 
   @HttpCode(200)
