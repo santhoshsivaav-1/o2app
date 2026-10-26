@@ -108,7 +108,7 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
           startDate: renewStart || undefined,
           discountPct: renewDiscount,
           ptTotal: renewPtTotal || undefined,
-          ptDurationMonths: renewPtTotal ? renewPtMonths || undefined : undefined,
+          ptDurationMonths: renewPtTotal ? Math.max(1, Math.round(Number(renewPtMonths))) : undefined,
           ptStart: renewPtTotal ? renewPtStart || undefined : undefined,
           ptTrainerId: renewPtTotal && renewPtTrainer ? renewPtTrainer : undefined,
           idempotencyKey: crypto.randomUUID(),
@@ -369,9 +369,15 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
                       type="number"
                       min={1}
                       max={36}
+                      step="1"
+                      placeholder="e.g. 1, 3, 6, 12"
                       value={renewPtMonths || ""}
-                      onChange={(e) => setRenewPtMonths(Number(e.target.value))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setRenewPtMonths(val === "" ? 0 : Math.max(0, Math.round(Number(val))));
+                      }}
                     />
+                    <p className="hint">Whole months (e.g. 1, 3, 6, 12)</p>
                   </div>
                   <div>
                     <label className="label">PT start</label>

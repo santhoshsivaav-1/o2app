@@ -332,6 +332,15 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
   const [seededFor, setSeededFor] = useState<string | null>(null);
   const seedKey = member.data ? `${member.data.id}:${member.data.updatedAt}` : null;
   const [photoPad, setPhotoPad] = useState<string>("");
+  const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setEnlargedPhoto(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
   useEffect(() => {
     if (member.data && seededFor !== seedKey) {
       const m = member.data;
@@ -446,12 +455,19 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
           ← Members
         </Link>
         {m.photoUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={m.photoUrl}
-            alt=""
-            className="h-10 w-10 rounded-full border border-stone-200 object-cover"
-          />
+          <button
+            type="button"
+            onClick={() => setEnlargedPhoto(m.photoUrl)}
+            className="group relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-stone-200 transition hover:ring-2 hover:ring-brand-500 hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+            title="Click to view full photo"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={m.photoUrl}
+              alt={m.fullName}
+              className="h-full w-full object-cover transition group-hover:scale-105"
+            />
+          </button>
         )}
         <h1 className="page-title">{m.fullName}</h1>
         <span className="badge-blue">{m.memberCode}</span>
@@ -600,6 +616,7 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
                   setPhotoPad(v);
                   photoSave.mutate(v);
                 }}
+                onEnlarge={(v) => setEnlargedPhoto(v)}
                 disabled={photoSave.isPending}
               />
             </div>
@@ -731,6 +748,54 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
         </div>
         <MemberAttendance memberId={m.id} />
       </div>
+
+      {enlargedPhoto && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setEnlargedPhoto(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="relative flex max-h-[90vh] max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/80 px-4 py-3">
+              <div>
+                <h3 className="font-semibold text-stone-900">{m.fullName}</h3>
+                <p className="text-xs text-stone-500">{m.memberCode}</p>
+              </div>
+              <button
+                type="button"
+                className="rounded-lg p-1 text-stone-400 hover:bg-stone-200 hover:text-stone-700 transition focus:outline-none"
+                onClick={() => setEnlargedPhoto(null)}
+                aria-label="Close photo"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex items-center justify-center bg-stone-950 p-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={enlargedPhoto}
+                alt={m.fullName}
+                className="max-h-[70vh] w-auto max-w-full rounded-lg object-contain shadow-sm"
+              />
+            </div>
+            <div className="border-t border-stone-100 bg-white px-4 py-2.5 text-right">
+              <button
+                type="button"
+                className="btn-ghost text-xs"
+                onClick={() => setEnlargedPhoto(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

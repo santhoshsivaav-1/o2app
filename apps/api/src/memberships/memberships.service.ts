@@ -124,8 +124,9 @@ export class MembershipsService {
     ptTrainerId?: string;
   }) {
     const ptTotal = dto.ptTotal ?? 0;
-    const ptDurationMonths = dto.ptDurationMonths ?? 0;
-    if (ptTotal > 0 && ptDurationMonths < 1)
+    const ptDurationMonths =
+      ptTotal > 0 ? Math.max(1, Math.round(Number(dto.ptDurationMonths ?? 0))) : 0;
+    if (ptTotal > 0 && Number(dto.ptDurationMonths ?? 0) <= 0)
       throw new BadRequestException("PT duration is required when a PT amount is set");
     if (ptTotal > 0 && ptTotal > 1_000_000)
       throw new BadRequestException("PT amount is too large");

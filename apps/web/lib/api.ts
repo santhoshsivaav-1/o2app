@@ -136,9 +136,11 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     const message =
       typeof raw === "string"
         ? raw
-        : raw && typeof raw.message === "string"
-          ? raw.message
-          : `Request failed (${res.status})`;
+        : Array.isArray(raw)
+          ? raw.join(", ")
+          : raw && typeof raw.message === "string"
+            ? raw.message
+            : `Request failed (${res.status})`;
     throw new ApiError(res.status, message, data);
   }
   return data as T;

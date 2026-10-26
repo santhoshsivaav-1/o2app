@@ -8,10 +8,12 @@ import { fileToPhotoDataUrl } from "../lib/api";
 export function MemberPhoto({
   value,
   onChange,
+  onEnlarge,
   disabled,
 }: {
   value: string;
   onChange: (dataUrl: string) => void;
+  onEnlarge?: (dataUrl: string) => void;
   disabled?: boolean;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
@@ -37,12 +39,24 @@ export function MemberPhoto({
       <label className="label">Photo</label>
       <div className="flex items-center gap-3">
         {value ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={value}
-            alt="Member photo"
-            className="h-16 w-16 shrink-0 rounded-full border border-stone-200 object-cover"
-          />
+          <button
+            type="button"
+            onClick={() => onEnlarge?.(value)}
+            disabled={!onEnlarge}
+            className={`group relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-stone-200 ${
+              onEnlarge
+                ? "cursor-pointer hover:ring-2 hover:ring-brand-500 hover:opacity-90 transition focus:outline-none focus:ring-2 focus:ring-brand-500"
+                : ""
+            }`}
+            title={onEnlarge ? "Click to view full photo" : undefined}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={value}
+              alt="Member photo"
+              className="h-full w-full object-cover transition group-hover:scale-105"
+            />
+          </button>
         ) : (
           <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-dashed border-stone-300 text-xs text-stone-400">
             None

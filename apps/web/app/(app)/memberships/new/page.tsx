@@ -96,7 +96,7 @@ export default function NewMembershipPage() {
           discountPct,
           notes: notes || undefined,
           ptTotal: ptTotal || undefined,
-          ptDurationMonths: ptTotal ? ptMonths || undefined : undefined,
+          ptDurationMonths: ptTotal ? Math.max(1, Math.round(Number(ptMonths))) : undefined,
           ptStart: ptTotal ? ptStart || undefined : undefined,
           ptTrainerId: ptTotal && ptTrainerId ? ptTrainerId : undefined,
           idempotencyKey:
@@ -253,9 +253,15 @@ export default function NewMembershipPage() {
                   type="number"
                   min={1}
                   max={36}
+                  step="1"
+                  placeholder="e.g. 1, 3, 6, 12"
                   value={ptMonths || ""}
-                  onChange={(e) => setPtMonths(Number(e.target.value))}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setPtMonths(val === "" ? 0 : Math.max(0, Math.round(Number(val))));
+                  }}
                 />
+                <p className="hint">Whole months (e.g. 1, 3, 6, 12)</p>
               </div>
               <div>
                 <label className="label">PT start</label>
